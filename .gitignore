@@ -1,0 +1,60 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Visual Studio Code
+.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+
+# Symbol processing related
+android/app/src/main/res/raw/keep.xml
+
+# iOS/macOS ephemeral / flutter engine frameworks
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.flx
+ios/Flutter/app.zip
+ios/Flutter/flutter_assets/
+ios/ServiceDefinitions.json
+macos/Flutter/ephemeral/
+ios/Pods/
+macos/Pods/
+
+# Windows embedded content
+windows/flutter/ephemeral/
+
+# Android generated
+android/.gradle
+android/captures/
+android/gradleBuild/
+android/local.properties
+android/GeneratedPluginRegistrant.java
+
+# Coverage
+coverage/
