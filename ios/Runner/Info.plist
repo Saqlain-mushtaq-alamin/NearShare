@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>NearShare needs local network access to discover nearby devices for fast local Wi-Fi file transfer.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_nearshare._tcp</string>
+	</array>
 </dict>
 </plist>
