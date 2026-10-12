@@ -93,8 +93,8 @@ class DriftTransferSessionRepository implements TransferSessionRepository {
   /// open this repository, so drift's "database created twice" warning is not
   /// meaningful here.
   factory DriftTransferSessionRepository.openDefault() {
-    driftRuntimeOptions =
-        DriftRuntimeOptions(dontWarnAboutMultipleDatabases: true);
+    driftRuntimeOptions = DriftRuntimeOptions()
+      ..dontWarnAboutMultipleDatabases = true;
     final db = TransferSessionDatabase(
       LazyDatabase(
         () async {
