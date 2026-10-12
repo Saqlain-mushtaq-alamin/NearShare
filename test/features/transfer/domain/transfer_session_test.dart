@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+﻿import 'package:flutter_test/flutter_test.dart';
 import 'package:nearshare/features/transfer/domain/transfer_file.dart';
 import 'package:nearshare/features/transfer/domain/transfer_session.dart';
 
@@ -48,12 +48,18 @@ void main() {
     });
 
     test('fromName falls back to pending', () {
-      expect(TransferSessionStatus.fromName('paused'),
-          TransferSessionStatus.paused);
-      expect(TransferSessionStatus.fromName('nope'),
-          TransferSessionStatus.pending);
-      expect(TransferSessionStatus.fromName(null),
-          TransferSessionStatus.pending);
+      expect(
+        TransferSessionStatus.fromName('paused'),
+        TransferSessionStatus.paused,
+      );
+      expect(
+        TransferSessionStatus.fromName('nope'),
+        TransferSessionStatus.pending,
+      );
+      expect(
+        TransferSessionStatus.fromName(null),
+        TransferSessionStatus.pending,
+      );
     });
   });
 
