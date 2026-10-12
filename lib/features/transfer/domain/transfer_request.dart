@@ -1,3 +1,4 @@
+import 'chunk_info.dart';
 import 'transfer_file.dart';
 
 class TransferRequest {
@@ -8,6 +9,12 @@ class TransferRequest {
   final int totalSizeBytes;
   final DateTime timestamp;
 
+  /// Size of every chunk except the last one of each file.
+  ///
+  /// Both sides must agree on this value so chunk boundaries line up when a
+  /// transfer is resumed.
+  final int chunkSize;
+
   const TransferRequest({
     required this.transferId,
     required this.senderId,
@@ -15,6 +22,7 @@ class TransferRequest {
     required this.files,
     required this.totalSizeBytes,
     required this.timestamp,
+    this.chunkSize = kDefaultChunkSize,
   });
 
   TransferRequest copyWith({
@@ -24,6 +32,7 @@ class TransferRequest {
     List<TransferFile>? files,
     int? totalSizeBytes,
     DateTime? timestamp,
+    int? chunkSize,
   }) {
     return TransferRequest(
       transferId: transferId ?? this.transferId,
@@ -32,6 +41,7 @@ class TransferRequest {
       files: files ?? this.files,
       totalSizeBytes: totalSizeBytes ?? this.totalSizeBytes,
       timestamp: timestamp ?? this.timestamp,
+      chunkSize: chunkSize ?? this.chunkSize,
     );
   }
 
@@ -43,6 +53,7 @@ class TransferRequest {
       'files': files.map((f) => f.toJson()).toList(),
       'totalSizeBytes': totalSizeBytes,
       'timestamp': timestamp.toIso8601String(),
+      'chunkSize': chunkSize,
     };
   }
 
@@ -62,6 +73,7 @@ class TransferRequest {
       timestamp: json['timestamp'] != null
           ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now()
           : DateTime.now(),
+      chunkSize: json['chunkSize'] as int? ?? kDefaultChunkSize,
     );
   }
 
@@ -74,6 +86,7 @@ class TransferRequest {
           senderId == other.senderId &&
           senderName == other.senderName &&
           totalSizeBytes == other.totalSizeBytes &&
+          chunkSize == other.chunkSize &&
           timestamp.isAtSameMomentAs(other.timestamp);
 
   @override
@@ -82,6 +95,7 @@ class TransferRequest {
       senderId.hashCode ^
       senderName.hashCode ^
       totalSizeBytes.hashCode ^
+      chunkSize.hashCode ^
       timestamp.hashCode;
 
   @override
