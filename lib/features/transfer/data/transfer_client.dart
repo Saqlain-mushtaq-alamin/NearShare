@@ -1,14 +1,36 @@
 import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+
 import '../../discovery/domain/device.dart';
-import '../domain/transfer_file.dart';
+import '../domain/resume_state.dart';
 import '../domain/transfer_request.dart';
+import 'retry_policy.dart';
+
+/// Error returned by the receiver that should not be retried blindly.
+class TransferClientException implements Exception {
+  final String message;
+  final int? statusCode;
+  final List<int> missingChunks;
+
+  const TransferClientException(
+    this.message, {
+    this.statusCode,
+    this.missingChunks = const [],
+  });
+
+  @override
+  String toString() => 'TransferClientException: $message';
+}
 
 class TransferClient {
   final Dio _dio;
 
-  TransferClient({Dio? dio})
+  /// Backoff policy applied to chunk uploads, resume queries and finalization.
+  final RetryPolicy retryPolicy;
+
+  TransferClient({Dio? dio, RetryPolicy? retryPolicy})
       : _dio = dio ??
             Dio(
               BaseOptions(
@@ -16,9 +38,18 @@ class TransferClient {
                 receiveTimeout: const Duration(seconds: 60),
                 sendTimeout: const Duration(minutes: 30),
               ),
-            );
+            ),
+        retryPolicy = retryPolicy ?? transferRetryPolicy;
 
   String _baseUrl(Device target) => 'http://${target.ipAddress}:${target.port}';
+
+  bool _shouldRetry(Object error, StackTrace stack) {
+    if (error is DioException && error.type == DioExceptionType.cancel) {
+      return false;
+    }
+    if (error is TransferClientException) return false;
+    return isConnectionError(error);
+  }
 
   /// Sends a preparation request announcing intent to transfer files.
   /// Returns `true` if the recipient accepted, `false` if rejected.
@@ -43,7 +74,9 @@ class TransferClient {
       } else if (response.statusCode == 403) {
         return false;
       } else {
-        debugPrint('[TransferClient] Prepare request failed with status: ${response.statusCode}');
+        debugPrint(
+          '[TransferClient] Prepare request failed with status: ${response.statusCode}',
+        );
         return false;
       }
     } on DioException catch (e) {
@@ -58,70 +91,173 @@ class TransferClient {
     }
   }
 
-  /// Streams an individual file via multipart form-data to the target device.
-  Future<Map<String, dynamic>> uploadFile(
+  /// Asks the receiver which chunks of a single file it already holds.
+  ///
+  /// A receiver that does not know the transfer yields
+  /// [ResumeState.unknown], which the sender treats as "send everything".
+  Future<ResumeState> getResumeState(
     Device target,
     String transferId,
     int fileIndex,
-    TransferFile file, {
-    void Function(int sentBytes, int totalBytes)? onProgress,
+  ) async {
+    final url =
+        '${_baseUrl(target)}/api/v1/transfer/resume/$transferId/$fileIndex';
+
+    return retryPolicy.run(
+      () async {
+        final response = await _dio.get(
+          url,
+          options: Options(
+            validateStatus: (status) => status != null && status < 500,
+          ),
+        );
+        if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+          return ResumeState.fromJson(response.data as Map<String, dynamic>);
+        }
+        if (response.statusCode == 404) return const ResumeState.unknown();
+        throw TransferClientException(
+          'Resume query failed with status ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      },
+      retryIf: _shouldRetry,
+    );
+  }
+
+  /// Asks the receiver for the resume state of every file in a transfer.
+  Future<TransferResumeState> getResumeStateForAll(
+    Device target,
+    String transferId,
+  ) async {
+    final url = '${_baseUrl(target)}/api/v1/transfer/resume/$transferId';
+
+    return retryPolicy.run(
+      () async {
+        final response = await _dio.get(
+          url,
+          options: Options(
+            validateStatus: (status) => status != null && status < 500,
+          ),
+        );
+        if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+          return TransferResumeState.fromJson(
+            response.data as Map<String, dynamic>,
+          );
+        }
+        if (response.statusCode == 404) return const TransferResumeState.unknown();
+        throw TransferClientException(
+          'Resume query failed with status ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      },
+      retryIf: _shouldRetry,
+    );
+  }
+
+  /// Uploads a single chunk of a file.
+  ///
+  /// Connection failures are retried with exponential backoff before the error
+  /// is surfaced so the transfer can be paused instead of failing outright.
+  Future<Map<String, dynamic>> uploadChunk({
+    required Device target,
+    required String transferId,
+    required int fileIndex,
+    required int chunkIndex,
+    required Uint8List bytes,
+    required int startByte,
+    required int endByte,
+    required int fileSize,
+    required int totalChunks,
     CancelToken? cancelToken,
+    void Function(int sentBytes, int totalBytes)? onProgress,
+    RetryPolicy? retryPolicyOverride,
   }) async {
-    final url = '${_baseUrl(target)}/api/v1/transfer/upload/$transferId/$fileIndex';
+    final url =
+        '${_baseUrl(target)}/api/v1/transfer/chunk/$transferId/$fileIndex';
+    final policy = retryPolicyOverride ?? retryPolicy;
 
-    try {
-      MultipartFile multipartFile;
-      if (file.localPath.isNotEmpty && File(file.localPath).existsSync()) {
-        multipartFile = await MultipartFile.fromFile(
-          file.localPath,
-          filename: file.name,
+    return policy.run(
+      () async {
+        final response = await _dio.post(
+          url,
+          data: bytes,
+          cancelToken: cancelToken,
+          onSendProgress: onProgress,
+          options: Options(
+            headers: {
+              'content-type': 'application/octet-stream',
+              'x-transfer-id': transferId,
+              'x-file-index': '$fileIndex',
+              'x-chunk-index': '$chunkIndex',
+              'x-chunk-size': '${bytes.length}',
+              'x-total-chunks': '$totalChunks',
+              'content-range': 'bytes $startByte-$endByte/$fileSize',
+            },
+            validateStatus: (status) => status != null && status < 500,
+          ),
         );
-      } else {
-        // Fallback for tests or simulated byte payloads
-        multipartFile = MultipartFile.fromBytes(
-          [],
-          filename: file.name,
+
+        if (response.statusCode == 200) {
+          return response.data is Map<String, dynamic>
+              ? response.data as Map<String, dynamic>
+              : <String, dynamic>{};
+        }
+        if (response.statusCode == 409) {
+          throw TransferClientException(
+            'Transfer was cancelled by the receiver',
+            statusCode: 409,
+          );
+        }
+        throw TransferClientException(
+          'Chunk upload failed with status ${response.statusCode}: '
+          '${response.data}',
+          statusCode: response.statusCode,
         );
-      }
+      },
+      retryIf: _shouldRetry,
+    );
+  }
 
-      final formData = FormData.fromMap({
-        'file': multipartFile,
-        'name': file.name,
-        'size': file.sizeInBytes,
-        'mimeType': file.mimeType,
-      });
+  /// Asks the receiver to verify and assemble a fully received file.
+  Future<Map<String, dynamic>> finalizeFile(
+    Device target,
+    String transferId,
+    int fileIndex,
+  ) async {
+    final url =
+        '${_baseUrl(target)}/api/v1/transfer/finalize/$transferId/$fileIndex';
 
-      final response = await _dio.post(
-        url,
-        data: formData,
-        cancelToken: cancelToken,
-        onSendProgress: onProgress,
-        options: Options(
-          headers: {'content-type': 'multipart/form-data'},
-          validateStatus: (status) => status != null && status < 500,
-        ),
-      );
-
-      if (response.statusCode == 200) {
-        return response.data is Map<String, dynamic>
-            ? response.data as Map<String, dynamic>
-            : <String, dynamic>{};
-      } else {
-        throw Exception(
-          'Upload failed with status ${response.statusCode}: ${response.data}',
+    return retryPolicy.run(
+      () async {
+        final response = await _dio.post(
+          url,
+          options: Options(
+            validateStatus: (status) => status != null && status < 500,
+          ),
         );
-      }
-    } on DioException catch (e) {
-      if (CancelToken.isCancel(e)) {
-        debugPrint('[TransferClient] Upload cancelled by user: $transferId');
-      } else {
-        debugPrint('[TransferClient] Upload DioException: ${e.message}');
-      }
-      rethrow;
-    } catch (e) {
-      debugPrint('[TransferClient] Upload exception: $e');
-      rethrow;
-    }
+
+        if (response.statusCode == 200) {
+          return response.data is Map<String, dynamic>
+              ? response.data as Map<String, dynamic>
+              : <String, dynamic>{};
+        }
+
+        List<int> missing = const [];
+        if (response.data is Map<String, dynamic>) {
+          final raw =
+              (response.data as Map<String, dynamic>)['missingChunks'];
+          if (raw is List) {
+            missing = raw.map((e) => e as int).toList();
+          }
+        }
+        throw TransferClientException(
+          'Finalize failed with status ${response.statusCode}',
+          statusCode: response.statusCode,
+          missingChunks: missing,
+        );
+      },
+      retryIf: _shouldRetry,
+    );
   }
 
   /// Cancels an in-progress transfer on the recipient device.
@@ -143,6 +279,10 @@ class TransferClient {
   }
 
   /// Retrieves transfer status from recipient device.
+  ///
+  /// Returns `null` when the peer is unreachable or does not know the
+  /// transfer, which is exactly what [ConnectionMonitor] needs to detect a
+  /// drop.
   Future<Map<String, dynamic>?> getTransferStatus(
     Device target,
     String transferId,
@@ -150,7 +290,13 @@ class TransferClient {
     final url = '${_baseUrl(target)}/api/v1/transfer/status/$transferId';
 
     try {
-      final response = await _dio.get(url);
+      final response = await _dio.get(
+        url,
+        options: Options(
+          receiveTimeout: const Duration(seconds: 5),
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
       if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
         return response.data as Map<String, dynamic>;
       }
@@ -158,6 +304,41 @@ class TransferClient {
     } catch (e) {
       debugPrint('[TransferClient] Get status error: $e');
       return null;
+    }
+  }
+
+  /// Reads `[start, endExclusive)` of [filePath] without loading the file.
+  static Future<Uint8List> readChunk(
+    String filePath,
+    int start,
+    int endExclusive,
+  ) async {
+    final length = endExclusive - start;
+    if (length <= 0) return Uint8List(0);
+
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw TransferClientException('Local file not found: $filePath');
+    }
+
+    final raf = await file.open();
+    try {
+      final size = await raf.length();
+      if (start < 0 || endExclusive > size) {
+        throw TransferClientException(
+          'Chunk range $start-$endExclusive is outside file of $size bytes',
+        );
+      }
+      await raf.setPosition(start);
+      final bytes = await raf.read(length);
+      if (bytes.length != length) {
+        throw TransferClientException(
+          'Short read for $filePath: got ${bytes.length} of $length bytes',
+        );
+      }
+      return bytes;
+    } finally {
+      await raf.close();
     }
   }
 }
