@@ -40,7 +40,7 @@ void main() {
     });
 
     tearDown(() async {
-      notifier.dispose();
+      // ProviderScope owns the notifier lifecycle.
       await manager.dispose();
       if (await tempDir.exists()) {
         await tempDir.delete(recursive: true);
@@ -111,7 +111,7 @@ void main() {
 
       expect(find.text('Paused'), findsOneWidget);
       expect(
-        find.text('Connection lost â€” will resume when device is found'),
+        find.text('Connection lost — will resume when device is found'),
         findsOneWidget,
       );
       // The screen must stay on the transfer instead of navigating away.
@@ -121,11 +121,16 @@ void main() {
 
     testWidgets('normal transfers keep the plain transferring label',
         (tester) async {
-      notifier.seed(TransferState(activeProgress: buildProgress()));
+      notifier.seed(
+        TransferState(
+          activeProgress: buildProgress(currentChunk: 1, totalChunks: 4),
+        ),
+      );
       await pumpScreen(tester);
 
-      expect(find.text('Transferring'), findsOneWidget);
-      expect(find.textContaining('Chunk '), findsNothing);
+      expect(find.text('Transferring'), findsWidgets);
+      expect(find.text('Chunk 2/4'), findsOneWidget);
+      expect(find.text('Resuming transfer...'), findsNothing);
     });
   });
 }
