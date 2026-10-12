@@ -779,6 +779,9 @@ class TransferManager {
     );
     _emitProgress(progress);
     _cleanup(transferId);
+    // Flush the broadcast progress event so callers observing [onProgress]
+    // have seen the cancellation before this future completes.
+    await Future<void>.microtask(() {});
   }
 
   /// Discards a persisted session and everything staged for it.
