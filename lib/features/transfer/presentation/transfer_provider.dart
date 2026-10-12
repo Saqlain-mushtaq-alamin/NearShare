@@ -60,6 +60,7 @@ final transferStateProvider =
   final manager = ref.watch(transferManagerProvider);
   final identityService = ref.watch(deviceIdentityServiceProvider);
   final notifier = TransferNotifier(manager, identityService);
+  unawaited(notifier.ensureInitialized());
 
   // Rediscovered peers are the natural moment to continue paused sends.
   ref.listen<List<Device>>(
@@ -83,16 +84,18 @@ class TransferNotifier extends StateNotifier<TransferState> {
 
   TransferNotifier(this._manager, this._identityService)
       : super(const TransferState()) {
-    _init();
-  }
-
-  Future<void> _init() async {
-    if (_isInitialized) return;
-    _isInitialized = true;
-
     _incomingRequestSub =
         _manager.onIncomingRequest.listen(_handleIncomingRequest);
     _progressSub = _manager.onProgress.listen(_handleProgressUpdate);
+  }
+
+  /// Restores persisted sessions and starts the receiver server.
+  ///
+  /// Called once by the provider. Tests construct the notifier directly and
+  /// skip this so they do not open sockets or touch the real database.
+  Future<void> ensureInitialized() async {
+    if (_isInitialized) return;
+    _isInitialized = true;
 
     try {
       await _manager.initialize();
