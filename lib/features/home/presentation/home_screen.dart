@@ -6,6 +6,7 @@ import '../../discovery/presentation/device_list_widget.dart';
 import '../../discovery/presentation/discovery_provider.dart';
 import '../../transfer/presentation/transfer_provider.dart';
 import '../../transfer/presentation/widgets/incoming_transfer_dialog.dart';
+import '../../transfer/presentation/widgets/incomplete_transfers_widget.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -227,6 +228,8 @@ class HomeScreen extends ConsumerWidget {
             ),
 
             const Divider(height: 1),
+
+            const IncompleteTransfersWidget(),
 
             // Discovered Nearby Peers
             Expanded(
