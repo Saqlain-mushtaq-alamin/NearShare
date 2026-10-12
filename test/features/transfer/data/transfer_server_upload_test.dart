@@ -56,20 +56,22 @@ void main() {
       required int fileSize,
       required int totalChunks,
     }) {
-      return server.handler(
-        Request(
-          'POST',
-          url('/api/v1/transfer/chunk/$transferId/$fileIndex'),
-          body: Stream.value(bytes),
-          headers: {
-            'content-type': 'application/octet-stream',
-            'x-transfer-id': transferId,
-            'x-file-index': '$fileIndex',
-            'x-chunk-index': '$chunkIndex',
-            'x-chunk-size': '${bytes.length}',
-            'x-total-chunks': '$totalChunks',
-            'content-range': 'bytes $startByte-$endByte/$fileSize',
-          },
+      return Future.value(
+        server.handler(
+          Request(
+            'POST',
+            url('/api/v1/transfer/chunk/$transferId/$fileIndex'),
+            body: Stream.value(bytes),
+            headers: {
+              'content-type': 'application/octet-stream',
+              'x-transfer-id': transferId,
+              'x-file-index': '$fileIndex',
+              'x-chunk-index': '$chunkIndex',
+              'x-chunk-size': '${bytes.length}',
+              'x-total-chunks': '$totalChunks',
+              'content-range': 'bytes $startByte-$endByte/$fileSize',
+            },
+          ),
         ),
       );
     }
