@@ -769,17 +769,14 @@ class TransferServer {
       return _transferProgressMap[transferId]!;
     }
 
-    var index = fileIndex;
-    if (index == null) {
-      index = 0;
-      if (session != null) {
-        for (var i = 0; i < session.files.length; i++) {
-          if (!session.isFileComplete(i)) {
-            index = i;
-            break;
-          }
+    var index = fileIndex ?? 0;
+    if (fileIndex == null && session != null) {
+      for (var i = 0; i < session.files.length; i++) {
+        if (!session.isFileComplete(i)) {
           index = i;
+          break;
         }
+        index = i;
       }
     }
 
