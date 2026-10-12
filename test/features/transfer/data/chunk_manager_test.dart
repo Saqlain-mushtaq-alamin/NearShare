@@ -211,7 +211,7 @@ void main() {
       final updated = await repository.getSession(session.transferId);
       expect(updated!.receivedChunksForFile(0), isEmpty);
       expect(
-        await storage.chunkFileFor(session.transferId, 0, 0).exists(),
+        await (await storage.chunkFileFor(session.transferId, 0, 0)).exists(),
         isFalse,
       );
     });
