@@ -2,6 +2,7 @@ import '../../discovery/domain/device.dart';
 import '../domain/transfer_file.dart';
 import '../domain/transfer_progress.dart';
 import '../domain/transfer_request.dart';
+import '../domain/transfer_session.dart';
 
 class TransferState {
   final TransferProgress? activeProgress;
@@ -12,6 +13,8 @@ class TransferState {
   final int? serverPort;
   final bool isServerRunning;
   final String? errorMessage;
+  final List<TransferSession> incompleteSessions;
+  final TransferSession? activeSession;
 
   const TransferState({
     this.activeProgress,
@@ -22,10 +25,21 @@ class TransferState {
     this.serverPort,
     this.isServerRunning = false,
     this.errorMessage,
+    this.incompleteSessions = const [],
+    this.activeSession,
   });
 
   int get totalSelectedSizeBytes =>
       selectedFiles.fold(0, (sum, f) => sum + f.sizeInBytes);
+
+  /// Incomplete sends that have not been resumed yet.
+  List<TransferSession> get resumableSessions => [
+        for (final session in incompleteSessions)
+          if (session.direction == TransferDirection.sending &&
+              (session.status == TransferSessionStatus.paused ||
+                  session.status == TransferSessionStatus.pending))
+            session,
+      ];
 
   TransferState copyWith({
     TransferProgress? activeProgress,
@@ -41,6 +55,9 @@ class TransferState {
     bool? isServerRunning,
     String? errorMessage,
     bool clearErrorMessage = false,
+    List<TransferSession>? incompleteSessions,
+    TransferSession? activeSession,
+    bool clearActiveSession = false,
   }) {
     return TransferState(
       activeProgress: clearActiveProgress
@@ -60,6 +77,10 @@ class TransferState {
       isServerRunning: isServerRunning ?? this.isServerRunning,
       errorMessage:
           clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
+      incompleteSessions: incompleteSessions ?? this.incompleteSessions,
+      activeSession: clearActiveSession
+          ? null
+          : (activeSession ?? this.activeSession),
     );
   }
 
@@ -74,7 +95,9 @@ class TransferState {
           selectedTargetDevice == other.selectedTargetDevice &&
           serverPort == other.serverPort &&
           isServerRunning == other.isServerRunning &&
-          errorMessage == other.errorMessage;
+          errorMessage == other.errorMessage &&
+          incompleteSessions == other.incompleteSessions &&
+          activeSession == other.activeSession;
 
   @override
   int get hashCode =>
@@ -84,5 +107,8 @@ class TransferState {
       selectedTargetDevice.hashCode ^
       serverPort.hashCode ^
       isServerRunning.hashCode ^
-      errorMessage.hashCode;
+      errorMessage.hashCode ^
+      incompleteSessions.hashCode ^
+      activeSession.hashCode;
 }
+
