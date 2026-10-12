@@ -1,4 +1,5 @@
-import 'dart:convert';
+﻿import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -169,7 +170,7 @@ void main() {
       );
 
       final senderRepository = InMemoryTransferSessionRepository();
-      final session = buildSenderSession(id: 'resume-1');
+      final session = buildSenderSession(transferId: 'resume-1');
       await senderRepository.saveSession(session);
 
       final senderManager = buildSenderManager(senderRepository);
@@ -251,7 +252,7 @@ void main() {
           transferId: 'restart-1',
           fileIndex: 0,
           chunkIndex: chunkIndex,
-          bytes: content.substring(start, endExclusive).codeUnits,
+          bytes: Uint8List.fromList(content.substring(start, endExclusive).codeUnits),
           startByte: start,
           endByte: endExclusive - 1,
           fileSize: file.sizeInBytes,
@@ -304,10 +305,10 @@ void main() {
     test('markInterruptedSessions pauses drives left in progress', () async {
       final repository = InMemoryTransferSessionRepository();
       await repository.saveSession(
-        buildSenderSession(id: 'orphan', status: TransferSessionStatus.inProgress),
+        buildSenderSession(transferId: 'orphan', status: TransferSessionStatus.inProgress),
       );
       await repository.saveSession(
-        buildSenderSession(id: 'already', status: TransferSessionStatus.paused),
+        buildSenderSession(transferId: 'already', status: TransferSessionStatus.paused),
       );
 
       final manager = buildSenderManager(repository);
@@ -325,15 +326,69 @@ void main() {
       await manager.dispose();
     });
 
+    test(
+        'a restart pauses the drive and the rediscovered peer resumes it',
+        () async {
+      final file = buildFile();
+      final totalChunks = (file.sizeInBytes / 16).ceil();
+
+      // The first app run crashed after only the first chunk was sent.
+      await prepareAndAccept('restart-sender');
+      await sendChunk(
+        transferId: 'restart-sender',
+        chunkIndex: 0,
+        startByte: 0,
+        endByte: 15,
+        totalChunks: totalChunks,
+      );
+
+      final repository = InMemoryTransferSessionRepository();
+      await repository.saveSession(
+        buildSenderSession(
+          transferId: 'restart-sender',
+          status: TransferSessionStatus.inProgress,
+        ),
+      );
+
+      // Second app run: a brand new manager over the same persisted state.
+      final restarted = buildSenderManager(repository);
+      await restarted.initialize();
+
+      final resumed = await restarted.resumeTransferForPeer(target, cooldown: Duration.zero);
+      expect(resumed, isNotNull);
+      expect(
+        (await repository.getSession('restart-sender'))!.status,
+        TransferSessionStatus.inProgress,
+      );
+
+      // Let the background resume finish before disposing.
+      TransferSession? finished;
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
+      while (DateTime.now().isBefore(deadline)) {
+        finished = await repository.getSession('restart-sender');
+        if (finished?.status == TransferSessionStatus.completed) break;
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+
+      expect(finished, isNotNull);
+      expect(finished!.status, TransferSessionStatus.completed);
+      expect(
+        await File(finished.fileSavePaths[0]!).readAsString(),
+        content,
+      );
+
+      await restarted.dispose();
+    });
+
     test('cleanupStaleSessions drops old rows and returns them', () async {
       final repository = InMemoryTransferSessionRepository();
       final old = DateTime.now().subtract(const Duration(hours: 48));
       await repository.saveSession(
-        buildSenderSession(id: 'old')
+        buildSenderSession(transferId: 'old')
             .copyWith(status: TransferSessionStatus.paused, lastActivityAt: old),
       );
       await repository.saveSession(
-        buildSenderSession(id: 'new')
+        buildSenderSession(transferId: 'new')
             .copyWith(status: TransferSessionStatus.paused),
       );
 
@@ -352,7 +407,7 @@ void main() {
       final repository = InMemoryTransferSessionRepository();
       await repository.saveSession(
         buildSenderSession(
-          id: 'discard-me',
+          transferId: 'discard-me',
           status: TransferSessionStatus.paused,
         ),
       );
