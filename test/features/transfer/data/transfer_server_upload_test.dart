@@ -189,7 +189,7 @@ void main() {
 
       for (var chunkIndex = 1; chunkIndex < 3; chunkIndex++) {
         final start = chunkIndex * 6;
-        final text = chunkIndex == 1 ? 'World' : '!';
+        final text = chunkIndex == 1 ? 'World!' : '!';
         final res = await uploadChunk(
           transferId: 'upload-tx-2',
           fileIndex: 0,
@@ -307,11 +307,17 @@ void main() {
       expect(body['totalChunksExpected'], 3);
     });
 
-    test('resume endpoint answers 404 for an unknown transfer', () async {
+    test('resume endpoint reports unknown for a transfer it never saw',
+        () async {
       final res = await server.handler(
         Request('GET', url('/api/v1/transfer/resume/nope-tx/0')),
       );
-      expect(res.statusCode, 404);
+      expect(res.statusCode, 200);
+
+      final body = jsonDecode(await res.readAsString()) as Map<String, dynamic>;
+      expect(body['known'], isFalse);
+      expect(body['fileComplete'], isFalse);
+      expect(body['receivedChunks'], isEmpty);
     });
   });
 }
