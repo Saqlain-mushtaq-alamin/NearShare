@@ -71,9 +71,9 @@ class TransferProgressScreen extends ConsumerWidget {
       resumeHint = 'Connection lost — will resume when device is found';
     } else if (isResuming) {
       resumeHint = 'Resuming transfer...';
-    } else if (progress != null && progress.chunkLabel != null) {
-      resumeHint = progress.chunkLabel;
     }
+
+    final chunkLabel = progress?.chunkLabel;
 
     return PopScope(
       canPop: false,
@@ -166,18 +166,33 @@ class TransferProgressScreen extends ConsumerWidget {
                     ),
                   ),
 
-                if (resumeHint != null)
+                if (resumeHint != null || chunkLabel != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      resumeHint,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: isConnectionLost
-                            ? theme.colorScheme.error
-                            : theme.colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    child: Column(
+                      children: [
+                        if (resumeHint != null)
+                          Text(
+                            resumeHint,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: isConnectionLost
+                                  ? theme.colorScheme.error
+                                  : theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        if (resumeHint != null && chunkLabel != null)
+                          const SizedBox(height: 2),
+                        if (chunkLabel != null && chunkLabel != resumeHint)
+                          Text(
+                            chunkLabel,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
 
