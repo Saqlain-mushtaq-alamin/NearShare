@@ -44,6 +44,36 @@ class TransferProgressScreen extends ConsumerWidget {
     final currentFile = progress?.currentFileName ?? 'Preparing files...';
     final percentage = progress?.percentage ?? 0.0;
     final status = progress?.status ?? TransferStatus.pending;
+    final isResuming = progress?.isResuming ?? false;
+    final isConnectionLost = progress?.isConnectionLost ?? false;
+
+    final String centerLabel;
+    if (status == TransferStatus.pending) {
+      centerLabel = 'Waiting...';
+    } else if (status == TransferStatus.rejected) {
+      centerLabel = 'Rejected';
+    } else if (status == TransferStatus.completed) {
+      centerLabel = 'Done!';
+    } else if (status == TransferStatus.cancelled) {
+      centerLabel = 'Cancelled';
+    } else if (status == TransferStatus.failed) {
+      centerLabel = 'Failed';
+    } else if (isConnectionLost) {
+      centerLabel = 'Paused';
+    } else if (isResuming) {
+      centerLabel = 'Resuming';
+    } else {
+      centerLabel = 'Transferring';
+    }
+
+    String? resumeHint;
+    if (isConnectionLost) {
+      resumeHint = 'Connection lost — will resume when device is found';
+    } else if (isResuming) {
+      resumeHint = 'Resuming transfer...';
+    } else if (progress != null && progress.chunkLabel != null) {
+      resumeHint = progress.chunkLabel;
+    }
 
     return PopScope(
       canPop: false,
@@ -91,15 +121,11 @@ class TransferProgressScreen extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          status == TransferStatus.pending
-                              ? 'Waiting...'
-                              : (status == TransferStatus.rejected
-                                  ? 'Rejected'
-                                  : (status == TransferStatus.completed
-                                      ? 'Done!'
-                                      : 'Transferring')),
+                          centerLabel,
                           style: theme.textTheme.labelMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                            color: isConnectionLost
+                                ? theme.colorScheme.error
+                                : theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -135,6 +161,21 @@ class TransferProgressScreen extends ConsumerWidget {
                       'File ${(progress.currentFileIndex + 1).clamp(1, progress.totalFiles)} of ${progress.totalFiles}',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+
+                if (resumeHint != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      resumeHint,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: isConnectionLost
+                            ? theme.colorScheme.error
+                            : theme.colorScheme.primary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
