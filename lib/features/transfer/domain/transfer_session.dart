@@ -347,12 +347,14 @@ List<ChunkInfo> chunkRangesForSize(int fileSize, int chunkSize) {
     final start = i * chunkSize;
     final endExclusive =
         (start + chunkSize) > fileSize ? fileSize : (start + chunkSize);
-    ranges.add(ChunkInfo(
-      index: i,
-      startByte: start,
-      endByte: endExclusive - 1,
-      size: endExclusive - start,
-    ));
+    ranges.add(
+      ChunkInfo(
+        index: i,
+        startByte: start,
+        endByte: endExclusive - 1,
+        size: endExclusive - start,
+      ),
+    );
   }
   return ranges;
 }
