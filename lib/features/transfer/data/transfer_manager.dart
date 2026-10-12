@@ -257,7 +257,7 @@ class TransferManager {
   /// Finds a paused send targeting [peer] and continues it.
   ///
   /// Returns `null` when there is nothing to resume or a cooldown is active.
-  Future<TransferProgress?> resumeTransferForPeer(
+  Future<TransferSession?> resumeTransferForPeer(
     Device peer, {
     Duration cooldown = const Duration(seconds: 3),
   }) async {
