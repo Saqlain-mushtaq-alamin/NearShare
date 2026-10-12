@@ -3,12 +3,12 @@
 part of 'transfer_session_database.dart';
 
 // ignore_for_file: type=lint
-class $TransferSessionsTable extends TransferSessions
-    with TableInfo<$TransferSessionsTable, TransferSession> {
+class $SessionRecordsTable extends SessionRecords
+    with TableInfo<$SessionRecordsTable, SessionRecord> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $TransferSessionsTable(this.attachedDatabase, [this._alias]);
+  $SessionRecordsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _transferIdMeta =
       const VerificationMeta('transferId');
   @override
@@ -132,9 +132,9 @@ class $TransferSessionsTable extends TransferSessions
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'transfer_sessions';
+  static const String $name = 'session_records';
   @override
-  VerificationContext validateIntegrity(Insertable<TransferSession> instance,
+  VerificationContext validateIntegrity(Insertable<SessionRecord> instance,
       {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
@@ -248,9 +248,9 @@ class $TransferSessionsTable extends TransferSessions
   @override
   Set<GeneratedColumn> get $primaryKey => {transferId};
   @override
-  TransferSession map(Map<String, dynamic> data, {String? tablePrefix}) {
+  SessionRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return TransferSession(
+    return SessionRecord(
       transferId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}transfer_id'])!,
       peerId: attachedDatabase.typeMapping
@@ -289,12 +289,12 @@ class $TransferSessionsTable extends TransferSessions
   }
 
   @override
-  $TransferSessionsTable createAlias(String alias) {
-    return $TransferSessionsTable(attachedDatabase, alias);
+  $SessionRecordsTable createAlias(String alias) {
+    return $SessionRecordsTable(attachedDatabase, alias);
   }
 }
 
-class TransferSession extends DataClass implements Insertable<TransferSession> {
+class SessionRecord extends DataClass implements Insertable<SessionRecord> {
   final String transferId;
   final String peerId;
   final String peerName;
@@ -312,7 +312,7 @@ class TransferSession extends DataClass implements Insertable<TransferSession> {
   final DateTime? lastActivityAt;
   final DateTime? completedAt;
   final String? errorMessage;
-  const TransferSession(
+  const SessionRecord(
       {required this.transferId,
       required this.peerId,
       required this.peerName,
@@ -367,8 +367,8 @@ class TransferSession extends DataClass implements Insertable<TransferSession> {
     return map;
   }
 
-  TransferSessionsCompanion toCompanion(bool nullToAbsent) {
-    return TransferSessionsCompanion(
+  SessionRecordsCompanion toCompanion(bool nullToAbsent) {
+    return SessionRecordsCompanion(
       transferId: Value(transferId),
       peerId: Value(peerId),
       peerName: Value(peerName),
@@ -402,10 +402,10 @@ class TransferSession extends DataClass implements Insertable<TransferSession> {
     );
   }
 
-  factory TransferSession.fromJson(Map<String, dynamic> json,
+  factory SessionRecord.fromJson(Map<String, dynamic> json,
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return TransferSession(
+    return SessionRecord(
       transferId: serializer.fromJson<String>(json['transferId']),
       peerId: serializer.fromJson<String>(json['peerId']),
       peerName: serializer.fromJson<String>(json['peerName']),
@@ -450,7 +450,7 @@ class TransferSession extends DataClass implements Insertable<TransferSession> {
     };
   }
 
-  TransferSession copyWith(
+  SessionRecord copyWith(
           {String? transferId,
           String? peerId,
           String? peerName,
@@ -468,7 +468,7 @@ class TransferSession extends DataClass implements Insertable<TransferSession> {
           Value<DateTime?> lastActivityAt = const Value.absent(),
           Value<DateTime?> completedAt = const Value.absent(),
           Value<String?> errorMessage = const Value.absent()}) =>
-      TransferSession(
+      SessionRecord(
         transferId: transferId ?? this.transferId,
         peerId: peerId ?? this.peerId,
         peerName: peerName ?? this.peerName,
@@ -492,8 +492,8 @@ class TransferSession extends DataClass implements Insertable<TransferSession> {
         errorMessage:
             errorMessage.present ? errorMessage.value : this.errorMessage,
       );
-  TransferSession copyWithCompanion(TransferSessionsCompanion data) {
-    return TransferSession(
+  SessionRecord copyWithCompanion(SessionRecordsCompanion data) {
+    return SessionRecord(
       transferId:
           data.transferId.present ? data.transferId.value : this.transferId,
       peerId: data.peerId.present ? data.peerId.value : this.peerId,
@@ -530,7 +530,7 @@ class TransferSession extends DataClass implements Insertable<TransferSession> {
 
   @override
   String toString() {
-    return (StringBuffer('TransferSession(')
+    return (StringBuffer('SessionRecord(')
           ..write('transferId: $transferId, ')
           ..write('peerId: $peerId, ')
           ..write('peerName: $peerName, ')
@@ -574,7 +574,7 @@ class TransferSession extends DataClass implements Insertable<TransferSession> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is TransferSession &&
+      (other is SessionRecord &&
           other.transferId == this.transferId &&
           other.peerId == this.peerId &&
           other.peerName == this.peerName &&
@@ -594,7 +594,7 @@ class TransferSession extends DataClass implements Insertable<TransferSession> {
           other.errorMessage == this.errorMessage);
 }
 
-class TransferSessionsCompanion extends UpdateCompanion<TransferSession> {
+class SessionRecordsCompanion extends UpdateCompanion<SessionRecord> {
   final Value<String> transferId;
   final Value<String> peerId;
   final Value<String> peerName;
@@ -613,7 +613,7 @@ class TransferSessionsCompanion extends UpdateCompanion<TransferSession> {
   final Value<DateTime?> completedAt;
   final Value<String?> errorMessage;
   final Value<int> rowid;
-  const TransferSessionsCompanion({
+  const SessionRecordsCompanion({
     this.transferId = const Value.absent(),
     this.peerId = const Value.absent(),
     this.peerName = const Value.absent(),
@@ -633,7 +633,7 @@ class TransferSessionsCompanion extends UpdateCompanion<TransferSession> {
     this.errorMessage = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  TransferSessionsCompanion.insert({
+  SessionRecordsCompanion.insert({
     required String transferId,
     required String peerId,
     required String peerName,
@@ -662,7 +662,7 @@ class TransferSessionsCompanion extends UpdateCompanion<TransferSession> {
         receivedChunksJson = Value(receivedChunksJson),
         fileSavePathsJson = Value(fileSavePathsJson),
         startedAt = Value(startedAt);
-  static Insertable<TransferSession> custom({
+  static Insertable<SessionRecord> custom({
     Expression<String>? transferId,
     Expression<String>? peerId,
     Expression<String>? peerName,
@@ -705,7 +705,7 @@ class TransferSessionsCompanion extends UpdateCompanion<TransferSession> {
     });
   }
 
-  TransferSessionsCompanion copyWith(
+  SessionRecordsCompanion copyWith(
       {Value<String>? transferId,
       Value<String>? peerId,
       Value<String>? peerName,
@@ -724,7 +724,7 @@ class TransferSessionsCompanion extends UpdateCompanion<TransferSession> {
       Value<DateTime?>? completedAt,
       Value<String?>? errorMessage,
       Value<int>? rowid}) {
-    return TransferSessionsCompanion(
+    return SessionRecordsCompanion(
       transferId: transferId ?? this.transferId,
       peerId: peerId ?? this.peerId,
       peerName: peerName ?? this.peerName,
@@ -808,7 +808,7 @@ class TransferSessionsCompanion extends UpdateCompanion<TransferSession> {
 
   @override
   String toString() {
-    return (StringBuffer('TransferSessionsCompanion(')
+    return (StringBuffer('SessionRecordsCompanion(')
           ..write('transferId: $transferId, ')
           ..write('peerId: $peerId, ')
           ..write('peerName: $peerName, ')
@@ -836,17 +836,16 @@ abstract class _$TransferSessionDatabase extends GeneratedDatabase {
   _$TransferSessionDatabase(QueryExecutor e) : super(e);
   $TransferSessionDatabaseManager get managers =>
       $TransferSessionDatabaseManager(this);
-  late final $TransferSessionsTable transferSessions =
-      $TransferSessionsTable(this);
+  late final $SessionRecordsTable sessionRecords = $SessionRecordsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities => [transferSessions];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [sessionRecords];
 }
 
-typedef $$TransferSessionsTableCreateCompanionBuilder
-    = TransferSessionsCompanion Function({
+typedef $$SessionRecordsTableCreateCompanionBuilder = SessionRecordsCompanion
+    Function({
   required String transferId,
   required String peerId,
   required String peerName,
@@ -866,8 +865,8 @@ typedef $$TransferSessionsTableCreateCompanionBuilder
   Value<String?> errorMessage,
   Value<int> rowid,
 });
-typedef $$TransferSessionsTableUpdateCompanionBuilder
-    = TransferSessionsCompanion Function({
+typedef $$SessionRecordsTableUpdateCompanionBuilder = SessionRecordsCompanion
+    Function({
   Value<String> transferId,
   Value<String> peerId,
   Value<String> peerName,
@@ -888,9 +887,9 @@ typedef $$TransferSessionsTableUpdateCompanionBuilder
   Value<int> rowid,
 });
 
-class $$TransferSessionsTableFilterComposer
-    extends Composer<_$TransferSessionDatabase, $TransferSessionsTable> {
-  $$TransferSessionsTableFilterComposer({
+class $$SessionRecordsTableFilterComposer
+    extends Composer<_$TransferSessionDatabase, $SessionRecordsTable> {
+  $$SessionRecordsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -953,9 +952,9 @@ class $$TransferSessionsTableFilterComposer
       column: $table.errorMessage, builder: (column) => ColumnFilters(column));
 }
 
-class $$TransferSessionsTableOrderingComposer
-    extends Composer<_$TransferSessionDatabase, $TransferSessionsTable> {
-  $$TransferSessionsTableOrderingComposer({
+class $$SessionRecordsTableOrderingComposer
+    extends Composer<_$TransferSessionDatabase, $SessionRecordsTable> {
+  $$SessionRecordsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -1020,9 +1019,9 @@ class $$TransferSessionsTableOrderingComposer
       builder: (column) => ColumnOrderings(column));
 }
 
-class $$TransferSessionsTableAnnotationComposer
-    extends Composer<_$TransferSessionDatabase, $TransferSessionsTable> {
-  $$TransferSessionsTableAnnotationComposer({
+class $$SessionRecordsTableAnnotationComposer
+    extends Composer<_$TransferSessionDatabase, $SessionRecordsTable> {
+  $$SessionRecordsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -1081,33 +1080,33 @@ class $$TransferSessionsTableAnnotationComposer
       column: $table.errorMessage, builder: (column) => column);
 }
 
-class $$TransferSessionsTableTableManager extends RootTableManager<
+class $$SessionRecordsTableTableManager extends RootTableManager<
     _$TransferSessionDatabase,
-    $TransferSessionsTable,
-    TransferSession,
-    $$TransferSessionsTableFilterComposer,
-    $$TransferSessionsTableOrderingComposer,
-    $$TransferSessionsTableAnnotationComposer,
-    $$TransferSessionsTableCreateCompanionBuilder,
-    $$TransferSessionsTableUpdateCompanionBuilder,
+    $SessionRecordsTable,
+    SessionRecord,
+    $$SessionRecordsTableFilterComposer,
+    $$SessionRecordsTableOrderingComposer,
+    $$SessionRecordsTableAnnotationComposer,
+    $$SessionRecordsTableCreateCompanionBuilder,
+    $$SessionRecordsTableUpdateCompanionBuilder,
     (
-      TransferSession,
-      BaseReferences<_$TransferSessionDatabase, $TransferSessionsTable,
-          TransferSession>
+      SessionRecord,
+      BaseReferences<_$TransferSessionDatabase, $SessionRecordsTable,
+          SessionRecord>
     ),
-    TransferSession,
+    SessionRecord,
     PrefetchHooks Function()> {
-  $$TransferSessionsTableTableManager(
-      _$TransferSessionDatabase db, $TransferSessionsTable table)
+  $$SessionRecordsTableTableManager(
+      _$TransferSessionDatabase db, $SessionRecordsTable table)
       : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$TransferSessionsTableFilterComposer($db: db, $table: table),
+              $$SessionRecordsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$TransferSessionsTableOrderingComposer($db: db, $table: table),
+              $$SessionRecordsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$TransferSessionsTableAnnotationComposer($db: db, $table: table),
+              $$SessionRecordsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<String> transferId = const Value.absent(),
             Value<String> peerId = const Value.absent(),
@@ -1128,7 +1127,7 @@ class $$TransferSessionsTableTableManager extends RootTableManager<
             Value<String?> errorMessage = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
-              TransferSessionsCompanion(
+              SessionRecordsCompanion(
             transferId: transferId,
             peerId: peerId,
             peerName: peerName,
@@ -1168,7 +1167,7 @@ class $$TransferSessionsTableTableManager extends RootTableManager<
             Value<String?> errorMessage = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
-              TransferSessionsCompanion.insert(
+              SessionRecordsCompanion.insert(
             transferId: transferId,
             peerId: peerId,
             peerName: peerName,
@@ -1195,26 +1194,26 @@ class $$TransferSessionsTableTableManager extends RootTableManager<
         ));
 }
 
-typedef $$TransferSessionsTableProcessedTableManager = ProcessedTableManager<
+typedef $$SessionRecordsTableProcessedTableManager = ProcessedTableManager<
     _$TransferSessionDatabase,
-    $TransferSessionsTable,
-    TransferSession,
-    $$TransferSessionsTableFilterComposer,
-    $$TransferSessionsTableOrderingComposer,
-    $$TransferSessionsTableAnnotationComposer,
-    $$TransferSessionsTableCreateCompanionBuilder,
-    $$TransferSessionsTableUpdateCompanionBuilder,
+    $SessionRecordsTable,
+    SessionRecord,
+    $$SessionRecordsTableFilterComposer,
+    $$SessionRecordsTableOrderingComposer,
+    $$SessionRecordsTableAnnotationComposer,
+    $$SessionRecordsTableCreateCompanionBuilder,
+    $$SessionRecordsTableUpdateCompanionBuilder,
     (
-      TransferSession,
-      BaseReferences<_$TransferSessionDatabase, $TransferSessionsTable,
-          TransferSession>
+      SessionRecord,
+      BaseReferences<_$TransferSessionDatabase, $SessionRecordsTable,
+          SessionRecord>
     ),
-    TransferSession,
+    SessionRecord,
     PrefetchHooks Function()>;
 
 class $TransferSessionDatabaseManager {
   final _$TransferSessionDatabase _db;
   $TransferSessionDatabaseManager(this._db);
-  $$TransferSessionsTableTableManager get transferSessions =>
-      $$TransferSessionsTableTableManager(_db, _db.transferSessions);
+  $$SessionRecordsTableTableManager get sessionRecords =>
+      $$SessionRecordsTableTableManager(_db, _db.sessionRecords);
 }
