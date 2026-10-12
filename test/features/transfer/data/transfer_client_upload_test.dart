@@ -289,12 +289,17 @@ void main() {
       await client.prepareTransfer(targetDevice, request);
 
       final resume = await client.getResumeState(targetDevice, 'client-upload-tx-4', 0);
-      expect(resume.fileComplete, isTrue);
+      expect(resume.known, isTrue);
+      expect(resume.receivedChunks, isEmpty);
+      expect(resume.fileComplete, isFalse);
 
       final result = await client.finalizeFile(targetDevice, 'client-upload-tx-4', 0);
       final savedFile = File(result['savePath'] as String);
       expect(await savedFile.exists(), isTrue);
       expect(await savedFile.length(), 0);
+
+      final finalized = await client.getResumeState(targetDevice, 'client-upload-tx-4', 0);
+      expect(finalized.fileComplete, isTrue);
     });
   });
 }
