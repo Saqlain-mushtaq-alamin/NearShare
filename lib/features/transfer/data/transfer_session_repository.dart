@@ -53,7 +53,13 @@ Future<Directory> _resolveBaseDirectory() async {
     }
     return await getApplicationDocumentsDirectory();
   } catch (_) {
-    return await getTemporaryDirectory();
+    // path_provider is unavailable (unit tests, bare shells). Fall back to an
+    // isolated temp directory so the repository still behaves like SQLite.
+    try {
+      return await getTemporaryDirectory();
+    } catch (_) {
+      return Directory.systemTemp.createTempSync('nearshare_db_');
+    }
   }
 }
 
