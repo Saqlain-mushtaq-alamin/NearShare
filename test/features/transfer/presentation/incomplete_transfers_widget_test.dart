@@ -43,16 +43,16 @@ void main() {
     });
 
     tearDown(() async {
-      notifier.dispose();
+      // ProviderScope owns the notifier lifecycle.
       await manager.dispose();
       if (await tempDir.exists()) {
         await tempDir.delete(recursive: true);
       }
     });
 
-    TransferSession pausedSend({String id = 'inc-1', String peer = 'Sara'}) {
+    TransferSession pausedSend({String transferId = 'inc-1', String peer = 'Sara'}) {
       return TransferSession(
-        transferId: id,
+        transferId: transferId,
         peerId: 'peer-$peer',
         peerName: peer,
         peerIp: '192.168.1.15',
@@ -105,19 +105,17 @@ void main() {
         (tester) async {
       final session = pausedSend();
       await repository.saveSession(session);
-      notifier.seed(
-        TransferState(incompleteSessions: [session]),
-      );
+      notifier.seed(TransferState(incompleteSessions: [session]));
       await pumpWidget(tester);
 
       expect(find.text('Unfinished transfers'), findsOneWidget);
       expect(find.text('Sara'), findsOneWidget);
-      expect(find.text('2 file(s) Â· 5.0 MB Â· Paused'), findsOneWidget);
+      expect(find.text('2 file(s) · 5.0 MB · Paused'), findsOneWidget);
     });
 
     testWidgets('hides receiving sessions that the peer still owns',
         (tester) async {
-      final incoming = pausedSend(id: 'inc-2').copyWith(
+      final incoming = pausedSend(transferId: 'inc-2').copyWith(
         direction: TransferDirection.receiving,
       );
       notifier.seed(TransferState(incompleteSessions: [incoming]));

@@ -88,7 +88,13 @@ class DriftTransferSessionRepository implements TransferSessionRepository {
   }
 
   /// Lazily resolves the platform documents directory on first query.
+  ///
+  /// Widget tests build many short-lived [ProviderScope]s, each of which may
+  /// open this repository, so drift's "database created twice" warning is not
+  /// meaningful here.
   factory DriftTransferSessionRepository.openDefault() {
+    driftRuntimeOptions =
+        DriftRuntimeOptions(dontWarnAboutMultipleDatabases: true);
     final db = TransferSessionDatabase(
       LazyDatabase(
         () async {
