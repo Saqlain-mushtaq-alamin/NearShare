@@ -82,8 +82,10 @@ class TransferNotifier extends StateNotifier<TransferState> {
   bool _isInitialized = false;
   bool _autoResuming = false;
 
-  TransferNotifier(this._manager, this._identityService)
-      : super(const TransferState()) {
+  TransferNotifier(TransferManager manager, DeviceIdentityService identityService)
+      : _manager = manager,
+        _identityService = identityService,
+        super(const TransferState()) {
     _incomingRequestSub =
         _manager.onIncomingRequest.listen(_handleIncomingRequest);
     _progressSub = _manager.onProgress.listen(_handleProgressUpdate);
@@ -286,6 +288,7 @@ class TransferNotifier extends StateNotifier<TransferState> {
 
   @override
   void dispose() {
+    if (!mounted) return;
     _incomingRequestSub?.cancel();
     _progressSub?.cancel();
     super.dispose();
