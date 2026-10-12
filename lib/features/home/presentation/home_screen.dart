@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../discovery/domain/device.dart';
 import '../../discovery/presentation/device_list_widget.dart';
 import '../../discovery/presentation/discovery_provider.dart';
+import '../../transfer/presentation/transfer_provider.dart';
+import '../../transfer/presentation/widgets/incoming_transfer_dialog.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -44,14 +47,9 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  void _onDeviceTapped(BuildContext context, Device device) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Selected ${device.name} (${device.platform})'),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  void _onDeviceTapped(BuildContext context, WidgetRef ref, Device device) {
+    ref.read(transferStateProvider.notifier).setSelectedTargetDevice(device);
+    context.push('/send');
   }
 
   @override
@@ -59,6 +57,37 @@ class HomeScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final discoveryState = ref.watch(discoveryStateProvider);
     final localDevice = discoveryState.localDevice;
+
+    // Trigger server initialization & listen for incoming transfers
+    ref.listen(
+      transferStateProvider.select((s) => s.pendingIncomingRequest),
+      (prev, next) {
+        if (next != null) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) {
+              return IncomingTransferDialog(
+                request: next,
+                onAccept: () {
+                  Navigator.of(ctx).pop();
+                  ref
+                      .read(transferStateProvider.notifier)
+                      .acceptIncomingTransfer(next.transferId);
+                  context.push('/send/progress/${next.transferId}');
+                },
+                onReject: () {
+                  Navigator.of(ctx).pop();
+                  ref
+                      .read(transferStateProvider.notifier)
+                      .rejectIncomingTransfer(next.transferId);
+                },
+              );
+            },
+          );
+        }
+      },
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -202,11 +231,18 @@ class HomeScreen extends ConsumerWidget {
             // Discovered Nearby Peers
             Expanded(
               child: DeviceListWidget(
-                onDeviceSelected: (device) => _onDeviceTapped(context, device),
+                onDeviceSelected: (device) => _onDeviceTapped(context, ref, device),
               ),
             ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.send_rounded),
+        label: const Text('Send Files'),
+        onPressed: () {
+          context.push('/send');
+        },
       ),
     );
   }
