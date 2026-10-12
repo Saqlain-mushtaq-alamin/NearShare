@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+﻿import 'package:flutter_test/flutter_test.dart';
 import 'package:nearshare/features/transfer/data/transfer_session_repository.dart';
 import 'package:nearshare/features/transfer/domain/transfer_file.dart';
 import 'package:nearshare/features/transfer/domain/transfer_session.dart';
@@ -190,8 +190,10 @@ void main() {
       );
       await repository.saveSession(session);
 
-      expect((await repository.getSession('mem-1'))!.status,
-          TransferSessionStatus.paused);
+      expect(
+        (await repository.getSession('mem-1'))!.status,
+        TransferSessionStatus.paused,
+      );
       expect(await repository.getIncompleteSessions(), hasLength(1));
 
       await repository.deleteSession('mem-1');
