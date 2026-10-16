@@ -34,6 +34,10 @@ void main() {
       await monitor.dispose();
     });
 
+    // Broadcast StreamController delivers events in a later microtask, so
+    // flush the queue before asserting on the collected events.
+    Future<void> flushEvents() => Future<void>.delayed(Duration.zero);
+
     test('a single failed probe is not enough to declare a loss', () async {
       final events = <ConnectionEvent>[];
       final sub = monitor.onEvents.listen(events.add);
@@ -57,6 +61,7 @@ void main() {
       reachable = false;
       await monitor.heartbeatNow('t1');
       await monitor.heartbeatNow('t1');
+      await flushEvents();
 
       expect(monitor.isLost('t1'), isTrue);
       expect(events.map((e) => e.kind), [ConnectionEventKind.lost]);
@@ -75,6 +80,7 @@ void main() {
 
       reachable = true;
       await monitor.heartbeatNow('t1');
+      await flushEvents();
 
       expect(monitor.isLost('t1'), isFalse);
       expect(
@@ -98,6 +104,7 @@ void main() {
 
       monitor.watch(target: target, transferId: 't2');
       await monitor.heartbeatNow('t2');
+      await flushEvents();
 
       expect(monitor.isLost('t2'), isTrue);
       expect(events.single.kind, ConnectionEventKind.lost);

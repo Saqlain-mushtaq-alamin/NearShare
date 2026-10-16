@@ -426,13 +426,18 @@ void main() {
       final totalChunks = (file.sizeInBytes / 16).ceil();
 
       await prepareAndAccept('lost-chunk');
-      await sendChunk(
-        transferId: 'lost-chunk',
-        chunkIndex: 0,
-        startByte: 0,
-        endByte: 15,
-        totalChunks: totalChunks,
-      );
+      // Land every chunk so the only problem afterwards is the deleted file.
+      for (var i = 0; i < totalChunks; i++) {
+        final start = i * 16;
+        final end = (start + 15).clamp(0, file.sizeInBytes - 1);
+        await sendChunk(
+          transferId: 'lost-chunk',
+          chunkIndex: i,
+          startByte: start,
+          endByte: end,
+          totalChunks: totalChunks,
+        );
+      }
 
       final chunkFile = await receiverStorage.chunkFileFor('lost-chunk', 0, 0);
       await chunkFile.delete();
@@ -445,7 +450,7 @@ void main() {
 
       final client = TransferClient();
       final resume = await client.getResumeState(target, 'lost-chunk', 0);
-      expect(resume.receivedChunks, isEmpty);
+      expect(resume.receivedChunks, [1, 2]);
     });
   });
 }

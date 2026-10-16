@@ -127,12 +127,18 @@ void main() {
     test('reconcileFile forgets chunks whose backing file was deleted',
         () async {
       final session = await seed();
-      for (var i = 0; i < 3; i++) {
+      // 2500 bytes / 1024 => chunks of 1024, 1024, 452.
+      final payloads = [
+        List<int>.filled(1024, 0),
+        List<int>.filled(1024, 1),
+        List<int>.filled(452, 2),
+      ];
+      for (var i = 0; i < payloads.length; i++) {
         await manager.writeChunk(
           transferId: session.transferId,
           fileIndex: 0,
           chunkIndex: i,
-          bytes: List<int>.filled(1024, i),
+          bytes: payloads[i],
         );
       }
       expect(await manager.isFileComplete(session.transferId, 0), isTrue);
