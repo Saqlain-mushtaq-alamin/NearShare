@@ -41,6 +41,7 @@ dependencies:
   freezed_annotation: ^2.4.1
   json_annotation: ^4.9.0
   shelf_multipart: ^2.0.1
+  collection: ^1.18.0
 
 dev_dependencies:
   flutter_test:
