@@ -7,7 +7,7 @@ import 'package:nearshare/features/transfer/presentation/transfer_provider.dart'
 
 void main() {
   group('FilePickerScreen Widget Tests', () {
-    testWidgets('Renders empty state when no files selected', (tester) async {
+    testWidgets('Renders the Photos tab empty state', (tester) async {
       await tester.pumpWidget(
         const ProviderScope(
           child: MaterialApp(
@@ -16,18 +16,22 @@ void main() {
         ),
       );
 
-      expect(find.text('Select Files'), findsOneWidget);
-      expect(find.text('No files selected yet'), findsOneWidget);
-      expect(find.text('Choose Files'), findsOneWidget);
+      expect(find.text('Select files'), findsOneWidget);
+      expect(find.text('Nothing selected yet'), findsOneWidget);
+      expect(find.text('Add photos'), findsOneWidget);
+      expect(find.text('Photos'), findsOneWidget);
+      expect(find.text('Videos'), findsOneWidget);
+      expect(find.text('Documents'), findsOneWidget);
+      expect(find.text('All files'), findsOneWidget);
     });
 
-    testWidgets('Renders selected files list and total size', (tester) async {
+    testWidgets('Shows visual media on the Photos tab and files in the bar',
+        (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
             home: Consumer(
               builder: (context, ref, child) {
-                // Populate initial selected files
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   ref.read(transferStateProvider.notifier).setSelectedFiles(const [
                     TransferFile(
@@ -53,12 +57,49 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('presentation.pdf'), findsOneWidget);
       expect(find.text('photo.jpg'), findsOneWidget);
-      expect(find.text('2 files'), findsOneWidget);
+      expect(find.text('presentation.pdf'), findsNothing);
+      expect(find.text('2 files selected'), findsOneWidget);
       expect(find.text('1.5 MB'), findsOneWidget);
-      expect(find.text('Select Device'), findsOneWidget);
-      expect(find.text('Clear All'), findsOneWidget);
+      expect(find.text('Next'), findsOneWidget);
+      expect(find.text('Clear all'), findsOneWidget);
+    });
+
+    testWidgets('Documents tab lists non-media files', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Consumer(
+              builder: (context, ref, child) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  ref.read(transferStateProvider.notifier).setSelectedFiles(const [
+                    TransferFile(
+                      name: 'presentation.pdf',
+                      sizeInBytes: 1048576,
+                      mimeType: 'application/pdf',
+                      localPath: '/presentation.pdf',
+                    ),
+                    TransferFile(
+                      name: 'photo.jpg',
+                      sizeInBytes: 524288,
+                      mimeType: 'image/jpeg',
+                      localPath: '/photo.jpg',
+                    ),
+                  ]);
+                });
+                return const FilePickerScreen();
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Documents'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('presentation.pdf'), findsOneWidget);
+      expect(find.text('photo.jpg'), findsNothing);
     });
   });
 }

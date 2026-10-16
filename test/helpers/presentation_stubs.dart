@@ -14,11 +14,76 @@ import 'package:nearshare/features/transfer/presentation/transfer_provider.dart'
 import 'package:nearshare/features/transfer/presentation/transfer_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// A [DiscoveryNotifier] that never touches bonsoir.
+/// A [DiscoveryNotifier] that never touches bonsoir or device_info and keeps
+/// whatever state the test seeded (the parent's `_initialize` would
+/// auto-start broadcast/scanning and overwrite it).
 class StaticDiscoveryNotifier extends DiscoveryNotifier {
   StaticDiscoveryNotifier(DiscoveryState initialState)
-      : super(DeviceIdentityService(), _NoopMdnsService()) {
+      : super(FakeDeviceIdentityService(), _NoopMdnsService()) {
     state = initialState;
+  }
+
+  @override
+  bool get autoInitialize => false;
+
+  @override
+  Future<void> startBroadcast() async {}
+
+  @override
+  Future<void> stopBroadcast() async {}
+
+  @override
+  Future<void> startScanning() async {}
+
+  @override
+  Future<void> stopScanning() async {}
+
+  @override
+  Future<void> refresh() async {}
+}
+
+/// A [DeviceIdentityService] that answers immediately.
+///
+/// The real one awaits device_info_plus, which never resolves inside the
+/// test binding's fake-async zone and hangs `pumpAndSettle`.
+class FakeDeviceIdentityService extends DeviceIdentityService {
+  FakeDeviceIdentityService({
+    String deviceName = 'NearShare Test Device',
+    String deviceId = 'test-device-1',
+  })  : _deviceName = deviceName,
+        _deviceId = deviceId;
+
+  String _deviceName;
+  final String _deviceId;
+
+  @override
+  Future<String> getOrCreateDeviceId() async => _deviceId;
+
+  @override
+  Future<String> getOrCreateDeviceName() async => _deviceName;
+
+  @override
+  Future<void> setDeviceName(String newName) async {
+    final trimmed = newName.trim();
+    if (trimmed.isNotEmpty) _deviceName = trimmed;
+  }
+
+  @override
+  Future<int> getDevicePort() async => DeviceIdentityService.defaultPort;
+
+  @override
+  Future<void> setDevicePort(int port) async {}
+
+  @override
+  Future<Device> getLocalDevice({String ipAddress = '127.0.0.1'}) async {
+    return Device(
+      id: _deviceId,
+      name: _deviceName,
+      platform: 'android',
+      ipAddress: ipAddress,
+      port: DeviceIdentityService.defaultPort,
+      discoveredAt: DateTime(2026, 1, 1),
+    );
   }
 }
 
@@ -67,9 +132,9 @@ class TestTransferNotifier extends TransferNotifier {
 }
 
 /// Builds a [TestTransferNotifier] plus the temp directory backing it, so the
-/// caller can dispose both.
+/// caller can dispose both. Callers seed [SharedPreferences.setMockInitialValues]
+/// themselves before invoking this.
 Future<TestTransferHarness> createTestTransferHarness() async {
-  SharedPreferences.setMockInitialValues({});
   final tempDir = await Directory.systemTemp.createTemp('transfer_harness_');
   final manager = TransferManager(
     client: TransferClient(),

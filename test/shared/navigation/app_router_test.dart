@@ -5,8 +5,8 @@ import 'package:nearshare/app.dart';
 import 'package:nearshare/features/discovery/presentation/discovery_provider.dart';
 import 'package:nearshare/features/history/data/history_repository.dart';
 import 'package:nearshare/features/history/domain/transfer_record.dart';
+import 'package:nearshare/features/onboarding/application/onboarding_provider.dart';
 import 'package:nearshare/features/transfer/presentation/transfer_provider.dart';
-import 'package:nearshare/shared/navigation/app_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/presentation_stubs.dart';
@@ -49,10 +49,9 @@ void main() {
     late TestTransferHarness harness;
 
     setUp(() async {
-      SharedPreferences.setMockInitialValues({});
-      // The router is a global singleton; previous tests may have left the
-      // shell on another branch, so always start from the Home tab.
-      appRouter.go('/');
+      SharedPreferences.setMockInitialValues({
+        OnboardingKeys.complete: true,
+      });
       repository = InMemoryHistoryRepository();
       harness = await createTestTransferHarness();
     });
@@ -62,6 +61,10 @@ void main() {
     });
 
     Future<void> pumpApp(WidgetTester tester) async {
+      // Tall phone surface so Settings' off-screen rows are built.
+      tester.view.physicalSize = const Size(1080, 2600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -70,6 +73,8 @@ void main() {
               (ref) => StaticDiscoveryNotifier(emptyDiscoveryState()),
             ),
             transferStateProvider.overrideWith((ref) => harness.notifier),
+            deviceIdentityServiceProvider
+                .overrideWithValue(FakeDeviceIdentityService()),
           ],
           child: const NearShareApp(),
         ),
@@ -135,6 +140,59 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('No transfer history yet'), findsOneWidget);
+    });
+  });
+
+  group('Onboarding redirect', () {
+    late InMemoryHistoryRepository repository;
+    late TestTransferHarness harness;
+
+    setUp(() async {
+      repository = InMemoryHistoryRepository();
+      harness = await createTestTransferHarness();
+    });
+
+    tearDown(() async {
+      await harness.dispose();
+    });
+
+    Future<void> pumpApp(WidgetTester tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            historyRepositoryProvider.overrideWithValue(repository),
+            discoveryStateProvider.overrideWith(
+              (ref) => StaticDiscoveryNotifier(emptyDiscoveryState()),
+            ),
+            transferStateProvider.overrideWith((ref) => harness.notifier),
+            deviceIdentityServiceProvider
+                .overrideWithValue(FakeDeviceIdentityService()),
+          ],
+          child: const NearShareApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('first launch is redirected to onboarding', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+
+      await pumpApp(tester);
+
+      expect(find.byKey(const Key('onboarding-get-started')), findsOneWidget);
+      expect(find.byType(NavigationBar), findsNothing);
+    });
+
+    testWidgets('a completed onboarding is bypassed', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        OnboardingKeys.complete: true,
+      });
+
+      await pumpApp(tester);
+
+      expect(find.byKey(const Key('onboarding-get-started')), findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.text('Send files'), findsOneWidget);
     });
   });
 }

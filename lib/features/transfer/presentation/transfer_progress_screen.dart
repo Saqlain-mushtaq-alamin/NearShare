@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../shared/theme/app_theme.dart';
 import '../domain/transfer_progress.dart';
 import 'transfer_provider.dart';
 
@@ -24,6 +26,7 @@ class TransferProgressScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final palette = AppTheme.paletteOf(context);
     final transferState = ref.watch(transferStateProvider);
     final progress = transferState.activeProgress;
     final targetDevice = transferState.selectedTargetDevice;
@@ -96,41 +99,45 @@ class TransferProgressScreen extends ConsumerWidget {
                 const Spacer(),
 
                 // Progress Graphic
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 180,
-                      height: 180,
-                      child: CircularProgressIndicator(
-                        value: status == TransferStatus.pending ? null : percentage,
-                        strokeWidth: 10,
-                        backgroundColor:
-                            theme.colorScheme.primary.withValues(alpha: 0.15),
-                        strokeCap: StrokeCap.round,
+                Hero(
+                  tag: 'transfer-status-icon',
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 180,
+                        height: 180,
+                        child: CircularProgressIndicator(
+                          value: status == TransferStatus.pending ? null : percentage,
+                          strokeWidth: 10,
+                          color: palette.progress,
+                          backgroundColor:
+                              palette.progress.withValues(alpha: 0.15),
+                          strokeCap: StrokeCap.round,
+                        ),
                       ),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${(percentage * 100).toStringAsFixed(0)}%',
-                          style: theme.textTheme.displaySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.primary,
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${(percentage * 100).toStringAsFixed(0)}%',
+                            style: theme.textTheme.displaySmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.primary,
+                            ),
                           ),
-                        ),
-                        Text(
-                          centerLabel,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: isConnectionLost
-                                ? theme.colorScheme.error
-                                : theme.colorScheme.onSurfaceVariant,
+                          Text(
+                            centerLabel,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: isConnectionLost
+                                  ? theme.colorScheme.error
+                                  : theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 32),

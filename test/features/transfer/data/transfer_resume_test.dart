@@ -57,8 +57,16 @@ void main() {
     tearDown(() async {
       await receiverServer.dispose();
       for (final dir in [senderDir, receiverDir]) {
-        if (await dir.exists()) {
-          await dir.delete(recursive: true);
+        // Windows can hold file handles briefly after a transfer; retry the
+        // recursive delete instead of flaking the suite.
+        for (var attempt = 0; attempt < 3; attempt++) {
+          if (!await dir.exists()) break;
+          try {
+            await dir.delete(recursive: true);
+            break;
+          } on FileSystemException {
+            await Future<void>.delayed(const Duration(milliseconds: 50));
+          }
         }
       }
     });

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../shared/theme/app_theme.dart';
 import '../domain/transfer_progress.dart';
 import 'transfer_provider.dart';
 
@@ -24,6 +26,7 @@ class TransferCompleteScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final palette = AppTheme.paletteOf(context);
     final transferState = ref.watch(transferStateProvider);
     final progress = transferState.activeProgress;
     final status = progress?.status ?? TransferStatus.completed;
@@ -38,24 +41,34 @@ class TransferCompleteScreen extends ConsumerWidget {
     String statusDescription;
 
     if (isSuccess) {
-      statusColor = Colors.green;
-      statusIcon = Icons.check_circle_rounded;
+      statusColor = palette.success;
+      statusIcon = Icons.check_rounded;
       statusTitle = 'Transfer Complete!';
-      statusDescription = progress != null
-          ? 'Successfully transferred ${progress.totalFiles} ${progress.totalFiles == 1 ? "file" : "files"} (${_formatBytes(progress.bytesTransferred)}).'
-          : 'All files have been successfully transferred.';
+      final peer = transferState.selectedTargetDevice?.name;
+      if (progress != null && peer != null) {
+        statusDescription =
+            '${progress.totalFiles} ${progress.totalFiles == 1 ? 'file' : 'files'} '
+            '(${_formatBytes(progress.bytesTransferred)}) sent to $peer.';
+      } else if (progress != null) {
+        statusDescription =
+            'Successfully transferred ${progress.totalFiles} '
+            '${progress.totalFiles == 1 ? "file" : "files"} '
+            '(${_formatBytes(progress.bytesTransferred)}).';
+      } else {
+        statusDescription = 'All files have been successfully transferred.';
+      }
     } else if (isRejected) {
-      statusColor = Colors.orange;
-      statusIcon = Icons.block_flipped;
+      statusColor = palette.warning;
+      statusIcon = Icons.block_rounded;
       statusTitle = 'Transfer Declined';
       statusDescription = 'The recipient declined the transfer request.';
     } else if (isCancelled) {
-      statusColor = Colors.grey;
+      statusColor = theme.colorScheme.onSurfaceVariant;
       statusIcon = Icons.cancel_rounded;
       statusTitle = 'Transfer Cancelled';
       statusDescription = 'The file transfer was cancelled by user.';
     } else {
-      statusColor = theme.colorScheme.error;
+      statusColor = palette.error;
       statusIcon = Icons.error_outline_rounded;
       statusTitle = 'Transfer Failed';
       statusDescription = progress?.errorMessage ??
@@ -77,16 +90,26 @@ class TransferCompleteScreen extends ConsumerWidget {
               const Spacer(),
 
               // Status Icon Graphic
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  statusIcon,
-                  size: 80,
-                  color: statusColor,
+              Hero(
+                tag: 'transfer-status-icon',
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.6, end: 1),
+                  duration: const Duration(milliseconds: 420),
+                  curve: Curves.easeOutBack,
+                  builder: (context, scale, child) =>
+                      Transform.scale(scale: scale, child: child),
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      statusIcon,
+                      size: 80,
+                      color: statusColor,
+                    ),
+                  ),
                 ),
               ),
 

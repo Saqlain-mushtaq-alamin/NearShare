@@ -1,61 +1,26 @@
 import 'package:flutter/material.dart';
 import '../../domain/device.dart';
+import '../../../../shared/theme/app_icons.dart';
+import '../../../../shared/theme/app_text_styles.dart';
 
 class DeviceCard extends StatelessWidget {
   final Device device;
   final VoidCallback? onTap;
 
+  /// Small badge shown next to the platform chip (e.g. "Last used").
+  final String? tag;
+
   const DeviceCard({
     super.key,
     required this.device,
     this.onTap,
+    this.tag,
   });
-
-  IconData _getPlatformIcon(String platform) {
-    switch (platform.toLowerCase()) {
-      case 'android':
-        return Icons.phone_android;
-      case 'ios':
-      case 'iphone':
-      case 'ipad':
-        return Icons.phone_iphone;
-      case 'macos':
-      case 'mac':
-        return Icons.laptop_mac;
-      case 'windows':
-        return Icons.desktop_windows;
-      case 'linux':
-        return Icons.terminal;
-      case 'web':
-        return Icons.language;
-      default:
-        return Icons.devices_other;
-    }
-  }
-
-  Color _getPlatformColor(BuildContext context, String platform) {
-    final theme = Theme.of(context);
-    switch (platform.toLowerCase()) {
-      case 'android':
-        return Colors.green;
-      case 'ios':
-      case 'macos':
-        return Colors.grey.shade700;
-      case 'windows':
-        return Colors.blue;
-      case 'linux':
-        return Colors.orange;
-      case 'web':
-        return Colors.purple;
-      default:
-        return theme.colorScheme.primary;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final platformColor = _getPlatformColor(context, device.platform);
+    final platformColor = AppIcons.platformColor(device.platform);
 
     return Card(
       elevation: 0,
@@ -87,7 +52,7 @@ class DeviceCard extends StatelessWidget {
                   ),
                 ),
                 child: Icon(
-                  _getPlatformIcon(device.platform),
+                  AppIcons.platformFor(device.platform),
                   color: platformColor,
                   size: 26,
                 ),
@@ -127,12 +92,35 @@ class DeviceCard extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (tag != null) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.secondaryContainer,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              tag!,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onSecondaryContainer,
+                              ),
+                            ),
+                          ),
+                        ],
                         if (device.ipAddress.isNotEmpty) ...[
                           const SizedBox(width: 8),
-                          Text(
-                            '${device.ipAddress}:${device.port}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                          Flexible(
+                            child: Text(
+                              '${device.ipAddress}:${device.port}',
+                              style: AppTextStyles.cardSubtitle(theme),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],

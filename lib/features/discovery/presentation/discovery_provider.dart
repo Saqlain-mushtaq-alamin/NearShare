@@ -38,8 +38,13 @@ class DiscoveryNotifier extends StateNotifier<DiscoveryState>
     _initialize();
   }
 
+  /// Tests subclass [DiscoveryNotifier] with in-memory collaborators and seed
+  /// their own state; they override this to skip the auto-start side effects.
+  @protected
+  bool get autoInitialize => true;
+
   Future<void> _initialize() async {
-    if (_initialized) return;
+    if (_initialized || !autoInitialize) return;
     _initialized = true;
 
     try {

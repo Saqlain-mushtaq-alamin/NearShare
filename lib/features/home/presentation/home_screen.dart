@@ -1,55 +1,35 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../core/utils/is_test_env.dart';
+import '../../../shared/theme/app_icons.dart';
+import '../../../shared/theme/app_spacing.dart';
+import '../../../shared/theme/app_theme.dart';
+import '../../../shared/theme/app_text_styles.dart';
+import '../../../shared/utils/formatters.dart';
+import '../../../shared/widgets/app_logo.dart';
 import '../../discovery/domain/device.dart';
 import '../../discovery/presentation/device_list_widget.dart';
 import '../../discovery/presentation/discovery_provider.dart';
+import '../../history/domain/transfer_record.dart';
+import '../../history/presentation/history_provider.dart';
+import '../../settings/application/settings_provider.dart';
 import '../../transfer/presentation/transfer_provider.dart';
-import '../../transfer/presentation/widgets/incoming_transfer_dialog.dart';
+import '../../transfer/presentation/widgets/incoming_transfer_sheet.dart';
 import '../../transfer/presentation/widgets/incomplete_transfers_widget.dart';
 
+/// The app's home base: send, see who's around, and pick up where you left off.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
-  void _showEditNameDialog(BuildContext context, WidgetRef ref, String currentName) {
-    final controller = TextEditingController(text: currentName);
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Edit Device Name'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Device Name',
-              hintText: 'e.g. My MacBook / Phone',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final newName = controller.text.trim();
-                if (newName.isNotEmpty) {
-                  ref.read(discoveryStateProvider.notifier).updateLocalDeviceName(newName);
-                }
-                Navigator.of(ctx).pop();
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   void _onDeviceTapped(BuildContext context, WidgetRef ref, Device device) {
     ref.read(transferStateProvider.notifier).setSelectedTargetDevice(device);
+    unawaited(
+      ref.read(settingsProvider.notifier).setLastUsedDevice(device),
+    );
     context.push('/send');
   }
 
@@ -58,195 +38,477 @@ class HomeScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final discoveryState = ref.watch(discoveryStateProvider);
     final localDevice = discoveryState.localDevice;
+    final recentHistory = ref.watch(
+      historyProvider.select((s) => s.records.take(4).toList()),
+    );
 
-    // Trigger server initialization & listen for incoming transfers
     ref.listen(
       transferStateProvider.select((s) => s.pendingIncomingRequest),
       (prev, next) {
-        if (next != null) {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (ctx) {
-              return IncomingTransferDialog(
-                request: next,
-                onAccept: () {
-                  Navigator.of(ctx).pop();
-                  ref
-                      .read(transferStateProvider.notifier)
-                      .acceptIncomingTransfer(next.transferId);
-                  context.push('/send/progress/${next.transferId}');
-                },
-                onReject: () {
-                  Navigator.of(ctx).pop();
-                  ref
-                      .read(transferStateProvider.notifier)
-                      .rejectIncomingTransfer(next.transferId);
-                },
-              );
-            },
-          );
-        }
+        if (next == null) return;
+        IncomingTransferSheet.show(
+          context,
+          request: next,
+          onAccept: () {
+            ref
+                .read(transferStateProvider.notifier)
+                .acceptIncomingTransfer(next.transferId);
+            context.push('/send/progress/${next.transferId}');
+          },
+          onReject: () {
+            ref
+                .read(transferStateProvider.notifier)
+                .rejectIncomingTransfer(next.transferId);
+          },
+        );
       },
     );
 
+    final deviceCount = discoveryState.devices.length;
+    final deviceSectionHeight =
+        deviceCount == 0 ? 360.0 : 64.0 + deviceCount * 88.0;
+
     return Scaffold(
       appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 2,
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                Icons.share_location,
-                size: 20,
-                color: theme.colorScheme.onPrimaryContainer,
-              ),
-            ),
-            const SizedBox(width: 12),
+            const AppLogo(size: 30, padding: 5, background: Color(0xFF1A4BCF)),
+            const SizedBox(width: 10),
             const Text(
               'NearShare',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
           ],
         ),
         actions: [
           IconButton(
-            tooltip: 'Refresh Discovery',
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              ref.read(discoveryStateProvider.notifier).refresh();
-            },
+            tooltip: 'Refresh discovery',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: () => ref.read(discoveryStateProvider.notifier).refresh(),
           ),
         ],
       ),
       body: SafeArea(
-        child: Column(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            96,
+          ),
           children: [
-            // Local Device Card
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.25),
-                  ),
-                ),
-                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.25),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: theme.colorScheme.primary,
-                        child: Icon(
-                          Icons.devices,
-                          color: theme.colorScheme.onPrimary,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'This Device',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                if (discoveryState.isBroadcasting)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 1,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: Colors.green.withValues(alpha: 0.5),
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      'Visible',
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              localDevice?.name ?? 'Loading device name...',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              'Platform: ${localDevice?.platform.toUpperCase() ?? 'LOCAL'}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Edit Device Name',
-                        icon: const Icon(Icons.edit_outlined, size: 20),
-                        onPressed: localDevice == null
-                            ? null
-                            : () => _showEditNameDialog(
-                                  context,
-                                  ref,
-                                  localDevice.name,
-                                ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            _SendCard(
+              isReceiving: discoveryState.isBroadcasting,
+              onSend: () => context.push('/send'),
+              onToggleReceive: discoveryState.isBroadcasting
+                  ? () => ref.read(discoveryStateProvider.notifier).stopBroadcast()
+                  : () => ref.read(discoveryStateProvider.notifier).startBroadcast(),
             ),
-
-            const Divider(height: 1),
-
-            const IncompleteTransfersWidget(),
-
-            // Discovered Nearby Peers
-            Expanded(
+            if (localDevice != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              _ThisDeviceCard(device: localDevice),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            _IncompleteSection(theme: theme),
+            SizedBox(
+              height: deviceSectionHeight,
               child: DeviceListWidget(
-                onDeviceSelected: (device) => _onDeviceTapped(context, ref, device),
+                onDeviceSelected: (device) =>
+                    _onDeviceTapped(context, ref, device),
               ),
             ),
+            if (recentHistory.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _RecentTransfersSection(records: recentHistory),
+            ],
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        icon: const Icon(Icons.send_rounded),
-        label: const Text('Send Files'),
-        onPressed: () {
-          context.push('/send');
-        },
+        icon: const Icon(AppIcons.send),
+        label: const Text('Send'),
+        onPressed: () => context.push('/send'),
       ),
+    );
+  }
+}
+
+class _SendCard extends StatelessWidget {
+  const _SendCard({
+    required this.isReceiving,
+    required this.onSend,
+    required this.onToggleReceive,
+  });
+
+  final bool isReceiving;
+  final VoidCallback onSend;
+  final VoidCallback onToggleReceive;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isReceiving
+                    ? [const Color(0xFF1A4BCF), const Color(0xFF2F6BF0)]
+                    : [
+                        theme.colorScheme.primary.withValues(alpha: 0.85),
+                        theme.colorScheme.primary,
+                      ],
+              ),
+            ),
+            child: InkWell(
+              onTap: onSend,
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        AppIcons.send,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.lg),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Send files',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Photos, videos, docs — straight to a nearby device',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.85),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        InkWell(
+          onTap: onToggleReceive,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            child: Row(
+              children: [
+                _PulsingDot(active: isReceiving),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  isReceiving ? 'Ready to receive' : 'Receiving is paused',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isReceiving
+                        ? AppTheme.paletteOf(context).success
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  isReceiving ? 'Tap to pause' : 'Tap to resume',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A dot that breathes while the receive server is up.
+class _PulsingDot extends StatefulWidget {
+  const _PulsingDot({required this.active});
+
+  final bool active;
+
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  /// Under `flutter test` infinite animations block pumpAndSettle, so the dot
+  /// stays put and only pulses in a real app.
+  static final bool _allowAnimation = !isRunningUnderTest;
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active && _allowAnimation) _controller.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant _PulsingDot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_allowAnimation) return;
+    if (widget.active && !_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    } else if (!widget.active && _controller.isAnimating) {
+      _controller.stop();
+      _controller.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppTheme.paletteOf(context);
+    final color = widget.active ? palette.success : themeGrey(context);
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final t = Curves.easeInOut.transform(_controller.value);
+        return Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            boxShadow: widget.active
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.45 - 0.25 * t),
+                      blurRadius: 6 + 6 * t,
+                      spreadRadius: 1 + 3 * t,
+                    ),
+                  ]
+                : null,
+          ),
+        );
+      },
+    );
+  }
+
+  Color themeGrey(BuildContext context) =>
+      Theme.of(context).colorScheme.onSurfaceVariant;
+}
+
+class _ThisDeviceCard extends StatelessWidget {
+  const _ThisDeviceCard({required this.device});
+
+  final Device device;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+      child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        leading: CircleAvatar(
+          backgroundColor: theme.colorScheme.primaryContainer,
+          child: Icon(
+            AppIcons.platformFor(device.platform),
+            size: 22,
+            color: theme.colorScheme.onPrimaryContainer,
+          ),
+        ),
+        title: Text(
+          device.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.cardTitle(theme),
+        ),
+        subtitle: Text(
+          'This device · ${device.platform.toUpperCase()}',
+          style: AppTextStyles.cardSubtitle(theme),
+        ),
+        trailing: const Icon(Icons.edit_outlined, size: 18),
+        onTap: () => context.push('/settings'),
+      ),
+    );
+  }
+}
+
+class _IncompleteSection extends ConsumerWidget {
+  const _IncompleteSection({required this.theme});
+
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(
+      transferStateProvider.select((s) => s.resumableSessions.length),
+    );
+    if (count == 0) return const SizedBox.shrink();
+
+    final palette = AppTheme.paletteOf(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: palette.warning.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.pause_circle_outline, color: palette.warning),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    '$count ${count == 1 ? 'transfer' : 'transfers'} paused — '
+                    'resume or discard below',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        const IncompleteTransfersWidget(),
+        const SizedBox(height: AppSpacing.lg),
+      ],
+    );
+  }
+}
+
+class _RecentTransfersSection extends StatelessWidget {
+  const _RecentTransfersSection({required this.records});
+
+  final List<TransferRecord> records;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent transfers',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            TextButton(
+              onPressed: () => context.push('/history'),
+              child: const Text('See all'),
+            ),
+          ],
+        ),
+        Card(
+          child: Column(
+            children: [
+              for (var i = 0; i < records.length; i++) ...[
+                _RecentTile(record: records[i]),
+                if (i < records.length - 1) const Divider(indent: 56, endIndent: 16),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecentTile extends StatelessWidget {
+  const _RecentTile({required this.record});
+
+  final TransferRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppTheme.paletteOf(context);
+    final sent = record.isSent;
+    final done = record.status == TransferRecordStatus.completed;
+
+    final Color statusColor;
+    final IconData statusIcon;
+    if (done) {
+      statusColor = palette.success;
+      statusIcon = sent ? Icons.check_rounded : Icons.file_download_done_rounded;
+    } else if (record.status == TransferRecordStatus.failed) {
+      statusColor = palette.error;
+      statusIcon = Icons.error_outline_rounded;
+    } else {
+      statusColor = palette.warning;
+      statusIcon = Icons.timelapse_rounded;
+    }
+
+    return ListTile(
+      dense: false,
+      leading: CircleAvatar(
+        backgroundColor: statusColor.withValues(alpha: 0.14),
+        child: Icon(statusIcon, size: 20, color: statusColor),
+      ),
+      title: Text(
+        record.peerDeviceName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTextStyles.cardTitle(theme),
+      ),
+      subtitle: Text(
+        '${sent ? 'Sent' : 'Received'} · ${fileCountLabel(record.totalFiles, record.totalSizeBytes)}',
+        style: AppTextStyles.cardSubtitle(theme),
+      ),
+      trailing: Text(
+        formatTimestamp(record.timestamp),
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      onTap: () => context.push('/history/${record.transferId}'),
     );
   }
 }
