@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../discovery/data/device_identity_service.dart';
 import '../../discovery/domain/device.dart';
 import '../../discovery/presentation/discovery_provider.dart';
+import '../../history/data/history_providers.dart';
+import '../../history/data/resend_planner.dart';
+import '../../history/domain/transfer_record.dart';
 import '../data/file_storage_service.dart';
 import '../data/transfer_client.dart';
 import '../data/transfer_manager.dart';
@@ -14,23 +17,32 @@ import '../domain/transfer_request.dart';
 import '../domain/transfer_session.dart';
 import 'transfer_state.dart';
 
+export '../../history/data/history_providers.dart'
+    show nearShareDatabaseProvider, historyRepositoryProvider;
+
 final fileStorageServiceProvider = Provider<FileStorageService>((ref) {
   return FileStorageService();
 });
 
 final transferSessionRepositoryProvider =
     Provider<TransferSessionRepository>((ref) {
-  final repository = DriftTransferSessionRepository.openDefault();
-  ref.onDispose(repository.close);
-  return repository;
+  return DriftTransferSessionRepository.fromDatabase(
+    ref.watch(nearShareDatabaseProvider),
+  );
+});
+
+final resendPlannerProvider = Provider<ResendPlanner>((ref) {
+  return const ResendPlanner();
 });
 
 final transferServerProvider = Provider<TransferServer>((ref) {
   final storage = ref.watch(fileStorageServiceProvider);
   final repository = ref.watch(transferSessionRepositoryProvider);
+  final history = ref.watch(historyRepositoryProvider);
   final server = TransferServer(
     storageService: storage,
     sessionRepository: repository,
+    historyRepository: history,
   );
   ref.onDispose(() => server.dispose());
   return server;
@@ -45,11 +57,13 @@ final transferManagerProvider = Provider<TransferManager>((ref) {
   final client = ref.watch(transferClientProvider);
   final storage = ref.watch(fileStorageServiceProvider);
   final repository = ref.watch(transferSessionRepositoryProvider);
+  final history = ref.watch(historyRepositoryProvider);
   final manager = TransferManager(
     server: server,
     client: client,
     storageService: storage,
     sessionRepository: repository,
+    historyRepository: history,
   );
   ref.onDispose(() => manager.dispose());
   return manager;
@@ -59,7 +73,12 @@ final transferStateProvider =
     StateNotifierProvider<TransferNotifier, TransferState>((ref) {
   final manager = ref.watch(transferManagerProvider);
   final identityService = ref.watch(deviceIdentityServiceProvider);
-  final notifier = TransferNotifier(manager, identityService);
+  final resendPlanner = ref.watch(resendPlannerProvider);
+  final notifier = TransferNotifier(
+    manager,
+    identityService,
+    resendPlanner: resendPlanner,
+  );
   unawaited(notifier.ensureInitialized());
 
   // Rediscovered peers are the natural moment to continue paused sends.
@@ -73,18 +92,40 @@ final transferStateProvider =
   return notifier;
 });
 
+/// Result of preparing a resend from history.
+class ResendOutcome {
+  final ResendPlan plan;
+  final Device? matchedDevice;
+
+  const ResendOutcome({required this.plan, required this.matchedDevice});
+
+  /// True when there is at least one file left to send.
+  bool get canSend => !plan.isUnusable;
+
+  /// Some original paths are gone but others still work.
+  bool get hasMissingFiles => plan.missingFiles.isNotEmpty;
+
+  String get missingFilesMessage =>
+      'Some files are no longer available at their original locations.';
+}
+
 class TransferNotifier extends StateNotifier<TransferState> {
   final TransferManager _manager;
   final DeviceIdentityService _identityService;
+  final ResendPlanner _resendPlanner;
 
   StreamSubscription<TransferRequest>? _incomingRequestSub;
   StreamSubscription<TransferProgress>? _progressSub;
   bool _isInitialized = false;
   bool _autoResuming = false;
 
-  TransferNotifier(TransferManager manager, DeviceIdentityService identityService)
-      : _manager = manager,
+  TransferNotifier(
+    TransferManager manager,
+    DeviceIdentityService identityService, {
+    ResendPlanner resendPlanner = const ResendPlanner(),
+  })  : _manager = manager,
         _identityService = identityService,
+        _resendPlanner = resendPlanner,
         super(const TransferState()) {
     _incomingRequestSub =
         _manager.onIncomingRequest.listen(_handleIncomingRequest);
@@ -257,6 +298,41 @@ class TransferNotifier extends StateNotifier<TransferState> {
   Future<void> discardIncompleteSession(String transferId) async {
     await _manager.discardSession(transferId);
     await refreshIncompleteSessions();
+  }
+
+  /// Prepares the send flow from a history entry.
+  ///
+  /// Re-attaches every original file that is still on disk and, when the old
+  /// peer is currently discovered, pre-selects it. Returns what the UI needs
+  /// to warn the user about missing files.
+  Future<ResendOutcome> startResend(
+    TransferRecord record, {
+    List<Device> availableDevices = const [],
+  }) async {
+    final plan = await _resendPlanner.buildPlan(record);
+    final device = _resendPlanner.matchDevice(record, availableDevices);
+
+    if (plan.isUnusable) {
+      state = state.copyWith(
+        errorMessage:
+            'Some files are no longer available at their original locations.',
+        clearSelectedTargetDevice: true,
+        selectedFiles: const [],
+      );
+      return ResendOutcome(plan: plan, matchedDevice: device);
+    }
+
+    state = state.copyWith(
+      selectedFiles: plan.availableFiles,
+      selectedTargetDevice: device,
+      clearSelectedTargetDevice: device == null,
+      clearActiveProgress: true,
+      clearActiveRequest: true,
+      clearPendingIncomingRequest: true,
+      clearActiveSession: true,
+      clearErrorMessage: true,
+    );
+    return ResendOutcome(plan: plan, matchedDevice: device);
   }
 
   void acceptIncomingTransfer(String transferId) {

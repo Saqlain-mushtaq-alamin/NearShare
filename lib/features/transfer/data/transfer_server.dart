@@ -8,6 +8,8 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
+import '../../history/data/history_repository.dart';
+import '../../history/domain/transfer_record.dart';
 import '../domain/transfer_progress.dart';
 import '../domain/transfer_request.dart';
 import '../domain/transfer_session.dart';
@@ -34,6 +36,7 @@ class _ProgressState {
 class TransferServer {
   final FileStorageService _storageService;
   final TransferSessionRepository _sessionRepository;
+  final HistoryRepository _historyRepository;
   late final ChunkManager _chunkManager;
 
   final StreamController<TransferRequest> _incomingRequestController =
@@ -55,9 +58,11 @@ class TransferServer {
   TransferServer({
     FileStorageService? storageService,
     TransferSessionRepository? sessionRepository,
+    HistoryRepository? historyRepository,
   })  : _storageService = storageService ?? FileStorageService(),
         _sessionRepository = sessionRepository ??
-            InMemoryTransferSessionRepository() {
+            InMemoryTransferSessionRepository(),
+        _historyRepository = historyRepository ?? InMemoryHistoryRepository() {
     _chunkManager = ChunkManager(
       repository: _sessionRepository,
       storageService: _storageService,
@@ -72,6 +77,7 @@ class TransferServer {
   TransferSessionRepository get sessionRepository => _sessionRepository;
   FileStorageService get storageService => _storageService;
   ChunkManager get chunkManager => _chunkManager;
+  HistoryRepository get historyRepository => _historyRepository;
 
   Handler get handler => _buildRouter().call;
 
@@ -474,6 +480,10 @@ class TransferServer {
       force: true,
     );
 
+    if (isLastFile) {
+      await _recordHistory(session, TransferRecordStatus.completed);
+    }
+
     return Response.ok(
       jsonEncode({
         'status': 'completed',
@@ -604,8 +614,12 @@ class TransferServer {
     _cancelledTransfers.add(transferId);
     respondToRequest(transferId, false);
 
+    final session = await _sessionRepository.getSession(transferId);
     await _chunkManager.discardTransfer(transferId);
     await _sessionRepository.deleteSession(transferId);
+    if (session != null) {
+      await _recordHistory(session, TransferRecordStatus.cancelled);
+    }
 
     final paths = _receivedFilePaths.remove(transferId) ?? <String>{};
     for (final path in paths) {
@@ -630,6 +644,29 @@ class TransferServer {
       }),
       headers: _jsonHeaders,
     );
+  }
+
+  /// Appends a terminal outcome to the local history log.
+  ///
+  /// History is best-effort: a storage hiccup must never fail a transfer that
+  /// the user can already see on disk, so errors are only logged.
+  Future<void> _recordHistory(
+    TransferSession session,
+    TransferRecordStatus status, {
+    DateTime? completedAt,
+  }) async {
+    if (session.files.isEmpty) return;
+    try {
+      await _historyRepository.saveTransferRecord(
+        TransferRecord.fromSession(
+          session,
+          status,
+          completedAt: completedAt ?? DateTime.now(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[TransferServer] Failed to record history: $e');
+    }
   }
 
   Future<TransferRequest?> _ensureActiveTransfer(String transferId) async {

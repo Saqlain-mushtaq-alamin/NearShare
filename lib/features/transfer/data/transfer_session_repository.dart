@@ -3,11 +3,9 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
+import '../../history/data/history_database.dart';
 import '../domain/transfer_session.dart';
-import 'local/transfer_session_database.dart';
 
 /// Persistence contract for resumable [TransferSession] state.
 ///
@@ -35,37 +33,9 @@ abstract class TransferSessionRepository {
   Future<void> close();
 }
 
-/// Default location of the NearShare SQLite database.
-Future<File> defaultDatabaseFile() async {
-  final Directory baseDir = await _resolveBaseDirectory();
-  final dir = Directory(p.join(baseDir.path, 'NearShare'));
-  if (!await dir.exists()) {
-    await dir.create(recursive: true);
-  }
-  return File(p.join(dir.path, 'nearshare.db'));
-}
-
-Future<Directory> _resolveBaseDirectory() async {
-  try {
-    if (Platform.isAndroid) {
-      return await getExternalStorageDirectory() ??
-          await getApplicationDocumentsDirectory();
-    }
-    return await getApplicationDocumentsDirectory();
-  } catch (_) {
-    // path_provider is unavailable (unit tests, bare shells). Fall back to an
-    // isolated temp directory so the repository still behaves like SQLite.
-    try {
-      return await getTemporaryDirectory();
-    } catch (_) {
-      return Directory.systemTemp.createTempSync('nearshare_db_');
-    }
-  }
-}
-
 /// SQLite backed repository using `drift`.
 class DriftTransferSessionRepository implements TransferSessionRepository {
-  final TransferSessionDatabase _db;
+  final NearShareDatabase _db;
   final bool _ownsDatabase;
 
   DriftTransferSessionRepository(this._db, {bool ownsDatabase = true})
@@ -74,7 +44,7 @@ class DriftTransferSessionRepository implements TransferSessionRepository {
   /// Opens (or creates) the database file at [path].
   factory DriftTransferSessionRepository.open(String path) {
     return DriftTransferSessionRepository(
-      TransferSessionDatabase(NativeDatabase(File(path))),
+      NearShareDatabase(NativeDatabase(File(path))),
     );
   }
 
@@ -83,27 +53,20 @@ class DriftTransferSessionRepository implements TransferSessionRepository {
   /// Used by unit tests.
   factory DriftTransferSessionRepository.inMemory() {
     return DriftTransferSessionRepository(
-      TransferSessionDatabase(NativeDatabase.memory()),
+      NearShareDatabase(NativeDatabase.memory()),
     );
   }
 
-  /// Lazily resolves the platform documents directory on first query.
+  /// Shares an already opened database instead of owning it.
   ///
-  /// Widget tests build many short-lived [ProviderScope]s, each of which may
-  /// open this repository, so drift's "database created twice" warning is not
-  /// meaningful here.
+  /// The provider layer uses this so sessions and history share one file.
+  factory DriftTransferSessionRepository.fromDatabase(NearShareDatabase db) {
+    return DriftTransferSessionRepository(db, ownsDatabase: false);
+  }
+
+  /// Lazily resolves the platform documents directory on first query.
   factory DriftTransferSessionRepository.openDefault() {
-    driftRuntimeOptions = DriftRuntimeOptions()
-      ..dontWarnAboutMultipleDatabases = true;
-    final db = TransferSessionDatabase(
-      LazyDatabase(
-        () async {
-          final file = await defaultDatabaseFile();
-          return NativeDatabase(file);
-        },
-      ),
-    );
-    return DriftTransferSessionRepository(db);
+    return DriftTransferSessionRepository(openDefaultNearShareDatabase());
   }
 
   @override

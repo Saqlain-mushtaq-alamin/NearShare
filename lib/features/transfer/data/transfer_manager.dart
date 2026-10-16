@@ -5,6 +5,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../history/data/history_repository.dart';
+import '../../history/domain/transfer_record.dart';
 import '../../discovery/domain/device.dart';
 import '../domain/chunk_info.dart';
 import '../domain/transfer_file.dart';
@@ -68,6 +70,7 @@ class TransferManager {
   late final TransferSessionRepository _sessionRepository;
   late final ChunkManager _chunkManager;
   late final ConnectionMonitor _connectionMonitor;
+  late final HistoryRepository _historyRepository;
 
   final Uuid _uuid;
 
@@ -94,16 +97,21 @@ class TransferManager {
     TransferSessionRepository? sessionRepository,
     ChunkManager? chunkManager,
     ConnectionMonitor? connectionMonitor,
+    HistoryRepository? historyRepository,
   }) : _uuid = uuid ?? const Uuid() {
     _storageService = storageService ??
         (server != null ? server.storageService : FileStorageService());
     _sessionRepository = sessionRepository ??
         server?.sessionRepository ??
         InMemoryTransferSessionRepository();
+    _historyRepository = historyRepository ??
+        server?.historyRepository ??
+        InMemoryHistoryRepository();
     _server = server ??
         TransferServer(
           storageService: _storageService,
           sessionRepository: _sessionRepository,
+          historyRepository: _historyRepository,
         );
     _client = client ?? TransferClient();
     _chunkManager = chunkManager ??
@@ -133,6 +141,7 @@ class TransferManager {
   TransferSessionRepository get sessionRepository => _sessionRepository;
   ChunkManager get chunkManager => _chunkManager;
   ConnectionMonitor get connectionMonitor => _connectionMonitor;
+  HistoryRepository get historyRepository => _historyRepository;
 
   Stream<TransferRequest> get onIncomingRequest => _server.onIncomingRequest;
   Stream<TransferProgress> get onProgress => _progressStreamController.stream;
@@ -362,6 +371,7 @@ class TransferManager {
       );
       if (!accepted) {
         debugPrint('[TransferManager] Transfer was rejected by ${target.name}');
+        await _recordHistory(current, TransferRecordStatus.cancelled);
         await _sessionRepository.deleteSession(transferId);
         emit(status: TransferStatus.rejected, clearChunk: true);
         _cleanup(transferId);
@@ -464,6 +474,11 @@ class TransferManager {
         clearErrorMessage: true,
       );
       await _sessionRepository.saveSession(current);
+      await _recordHistory(
+        current,
+        TransferRecordStatus.completed,
+        completedAt: current.completedAt,
+      );
 
       final completed = lastProgress.copyWith(
         status: TransferStatus.completed,
@@ -482,8 +497,15 @@ class TransferManager {
     } catch (error) {
       final isCancelled = cancelToken.isCancelled ||
           error is TransferCancelledException;
+      // isConnectionError keyword-matches "clientexception", which our own
+      // TransferClientException name contains — but that type is only thrown
+      // for HTTP error responses or local file problems, never for transport
+      // failures (those surface as DioException/SocketException). Treating it
+      // as connection-lost would pause the transfer instead of failing it.
       final isConnectionLost = error is TransferConnectionLostException ||
-          (isConnectionError(error) && !isCancelled);
+          (error is! TransferClientException &&
+              isConnectionError(error) &&
+              !isCancelled);
 
       debugPrint(
         '[TransferManager] Transfer $transferId stopped: $error '
@@ -491,6 +513,7 @@ class TransferManager {
       );
 
       if (isCancelled) {
+        await _recordHistory(current, TransferRecordStatus.cancelled);
         await _sessionRepository.deleteSession(transferId);
         emit(status: TransferStatus.cancelled, clearChunk: true);
       } else if (isConnectionLost) {
@@ -513,6 +536,7 @@ class TransferManager {
           lastActivityAt: DateTime.now(),
         );
         await _sessionRepository.saveSession(current);
+        await _recordHistory(current, TransferRecordStatus.failed);
         emit(
           status: TransferStatus.failed,
           errorMessage: error.toString(),
@@ -711,6 +735,29 @@ class TransferManager {
     );
   }
 
+  /// Appends a terminal outcome to the local history log.
+  ///
+  /// History is best-effort: a storage hiccup must never turn a successful
+  /// transfer into a user-visible failure, so errors are only logged.
+  Future<void> _recordHistory(
+    TransferSession session,
+    TransferRecordStatus status, {
+    DateTime? completedAt,
+  }) async {
+    if (session.files.isEmpty) return;
+    try {
+      await _historyRepository.saveTransferRecord(
+        TransferRecord.fromSession(
+          session,
+          status,
+          completedAt: completedAt ?? DateTime.now(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[TransferManager] Failed to record history: $e');
+    }
+  }
+
   void _onConnectionEvent(ConnectionEvent event) {
     if (event.kind == ConnectionEventKind.lost) {
       if (_activeSendingTargets.containsKey(event.transferId) ||
@@ -756,6 +803,12 @@ class TransferManager {
     }
     _connectionLostSignals.remove(transferId);
 
+    // When _runTransfer is mid-flight it owns the terminal bookkeeping and
+    // has already written the history entry. Only record here for cancels
+    // that never reached that loop (receiver side, paused or pending sends).
+    final isDriving = _runningTransfers.contains(transferId);
+    final session = await _sessionRepository.getSession(transferId);
+
     final target = _activeSendingTargets[transferId];
     if (target != null) {
       try {
@@ -766,6 +819,9 @@ class TransferManager {
     _server.respondToRequest(transferId, false);
     await _chunkManager.discardTransfer(transferId);
     await _sessionRepository.deleteSession(transferId);
+    if (!isDriving && session != null) {
+      await _recordHistory(session, TransferRecordStatus.cancelled);
+    }
 
     final req = _activeRequests[transferId];
     final progress = TransferProgress(
@@ -785,9 +841,20 @@ class TransferManager {
   }
 
   /// Discards a persisted session and everything staged for it.
+  ///
+  /// The abandoned transfer is logged as cancelled so the user can still see
+  /// and resend it from history. The session row is removed before the
+  /// filesystem cleanup so the UI is unblocked even if temp deletion is slow
+  /// (and so widget tests, which run under FakeAsync, are not stalled by real
+  /// IO). Temp cleanup is best-effort: `deleteTempDataFor` already swallows
+  /// errors, and leftover scratch data is ignored on the next launch.
   Future<void> discardSession(String transferId) async {
-    await _chunkManager.discardTransfer(transferId);
+    final session = await _sessionRepository.getSession(transferId);
     await _sessionRepository.deleteSession(transferId);
+    unawaited(_chunkManager.discardTransfer(transferId));
+    if (session != null) {
+      await _recordHistory(session, TransferRecordStatus.cancelled);
+    }
   }
 
   TransferRequest? getActiveRequest(String transferId) {
