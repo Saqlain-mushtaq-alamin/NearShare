@@ -1,0 +1,140 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nearshare/app.dart';
+import 'package:nearshare/features/discovery/presentation/discovery_provider.dart';
+import 'package:nearshare/features/history/data/history_repository.dart';
+import 'package:nearshare/features/history/domain/transfer_record.dart';
+import 'package:nearshare/features/transfer/presentation/transfer_provider.dart';
+import 'package:nearshare/shared/navigation/app_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../helpers/presentation_stubs.dart';
+
+TransferRecord historyEntry() {
+  return TransferRecord(
+    transferId: 'nav-1',
+    direction: TransferDirection.sending,
+    peerDeviceId: 'peer-1',
+    peerDeviceName: 'Laptop',
+    totalFiles: 1,
+    totalSizeBytes: 1024,
+    status: TransferRecordStatus.completed,
+    timestamp: DateTime(2026, 1, 1, 12),
+    completedAt: DateTime(2026, 1, 1, 12, 1),
+    files: const [
+      TransferFileRecord(
+        fileName: 'nav.txt',
+        fileSizeBytes: 1024,
+        mimeType: 'text/plain',
+        localPath: '/tmp/nav.txt',
+        status: TransferRecordStatus.completed,
+      ),
+    ],
+  );
+}
+
+/// Finds a destination icon scoped to the bottom [NavigationBar] so screen
+/// content (empty-state icons, AppBar titles) cannot collide.
+Finder navIcon(IconData icon) {
+  return find.descendant(
+    of: find.byType(NavigationBar),
+    matching: find.byIcon(icon),
+  );
+}
+
+void main() {
+  group('App navigation', () {
+    late InMemoryHistoryRepository repository;
+    late TestTransferHarness harness;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      // The router is a global singleton; previous tests may have left the
+      // shell on another branch, so always start from the Home tab.
+      appRouter.go('/');
+      repository = InMemoryHistoryRepository();
+      harness = await createTestTransferHarness();
+    });
+
+    tearDown(() async {
+      await harness.dispose();
+    });
+
+    Future<void> pumpApp(WidgetTester tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            historyRepositoryProvider.overrideWithValue(repository),
+            discoveryStateProvider.overrideWith(
+              (ref) => StaticDiscoveryNotifier(emptyDiscoveryState()),
+            ),
+            transferStateProvider.overrideWith((ref) => harness.notifier),
+          ],
+          child: const NearShareApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shows a bottom navigation bar with four tabs', (tester) async {
+      await pumpApp(tester);
+
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('History'), findsOneWidget);
+      expect(find.text('Rooms'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
+    });
+
+    testWidgets('tapping History opens the history screen', (tester) async {
+      await pumpApp(tester);
+
+      await tester.tap(navIcon(Icons.history_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No transfer history yet'), findsOneWidget);
+    });
+
+    testWidgets('tapping a history entry opens its detail screen',
+        (tester) async {
+      await repository.saveTransferRecord(historyEntry());
+      await pumpApp(tester);
+
+      await tester.tap(navIcon(Icons.history_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text('Laptop'), findsOneWidget);
+
+      await tester.tap(find.text('Laptop'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('nav.txt'), findsOneWidget);
+      expect(find.text('Resend'), findsOneWidget);
+    });
+
+    testWidgets('Rooms and Settings tabs render their placeholders',
+        (tester) async {
+      await pumpApp(tester);
+
+      await tester.tap(navIcon(Icons.groups_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text('Rooms are coming soon'), findsOneWidget);
+
+      await tester.tap(navIcon(Icons.settings_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text('Transfer history'), findsOneWidget);
+      expect(find.text('Clear transfer history'), findsOneWidget);
+    });
+
+    testWidgets('Settings links through to the history screen', (tester) async {
+      await pumpApp(tester);
+
+      await tester.tap(navIcon(Icons.settings_outlined));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Transfer history'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No transfer history yet'), findsOneWidget);
+    });
+  });
+}
