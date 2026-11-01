@@ -117,13 +117,15 @@ void main() {
       expect(find.text('Resend'), findsOneWidget);
     });
 
-    testWidgets('Rooms and Settings tabs render their placeholders',
+    testWidgets('Rooms and Settings tabs render their screens',
         (tester) async {
       await pumpApp(tester);
 
       await tester.tap(navIcon(Icons.groups_outlined));
       await tester.pumpAndSettle();
-      expect(find.text('Rooms are coming soon'), findsOneWidget);
+      expect(find.text('Share with the whole room'), findsOneWidget);
+      expect(find.text('Create Room'), findsOneWidget);
+      expect(find.text('Join Room'), findsOneWidget);
 
       await tester.tap(navIcon(Icons.settings_outlined));
       await tester.pumpAndSettle();
