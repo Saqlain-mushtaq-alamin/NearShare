@@ -7,6 +7,10 @@ import '../../features/history/presentation/history_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/onboarding/application/onboarding_provider.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
+import '../../features/rooms/presentation/create_room_screen.dart';
+import '../../features/rooms/presentation/join_room_screen.dart';
+import '../../features/rooms/presentation/room_active_screen.dart';
+import '../../features/rooms/presentation/room_transfer_progress_screen.dart';
 import '../../features/rooms/presentation/rooms_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/transfer/presentation/device_select_screen.dart';
@@ -121,6 +125,41 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/rooms',
                 builder: (context, state) => const RoomsScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'create',
+                    pageBuilder: (context, state) =>
+                        _slidePage(const CreateRoomScreen(), state),
+                  ),
+                  GoRoute(
+                    path: 'join',
+                    pageBuilder: (context, state) =>
+                        _slidePage(const JoinRoomScreen(), state),
+                  ),
+                  GoRoute(
+                    path: 'active/:roomId',
+                    pageBuilder: (context, state) {
+                      final roomId = state.pathParameters['roomId'] ?? '';
+                      return _slidePage(
+                        RoomActiveScreen(roomId: roomId),
+                        state,
+                      );
+                    },
+                    routes: [
+                      GoRoute(
+                        path: 'transfer',
+                        pageBuilder: (context, state) {
+                          final roomId =
+                              state.pathParameters['roomId'] ?? '';
+                          return _slidePage(
+                            RoomTransferProgressScreen(roomId: roomId),
+                            state,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
