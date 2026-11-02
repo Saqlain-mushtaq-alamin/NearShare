@@ -5,6 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../features/history/presentation/history_detail_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/merge_space/presentation/merge_conflicts_screen.dart';
+import '../../features/merge_space/presentation/merge_devices_screen.dart';
+import '../../features/merge_space/presentation/merge_join_screen.dart';
+import '../../features/merge_space/presentation/merge_space_screen.dart';
 import '../../features/onboarding/application/onboarding_provider.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/rooms/presentation/create_room_screen.dart';
@@ -68,8 +72,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       ),
                       GoRoute(
                         path: 'confirm',
-                        pageBuilder: (context, state) =>
-                            _slidePage(const TransferConfirmationScreen(), state),
+                        pageBuilder: (context, state) => _slidePage(
+                          const TransferConfirmationScreen(),
+                          state,
+                        ),
                       ),
                       GoRoute(
                         path: 'progress/:transferId',
@@ -149,8 +155,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       GoRoute(
                         path: 'transfer',
                         pageBuilder: (context, state) {
-                          final roomId =
-                              state.pathParameters['roomId'] ?? '';
+                          final roomId = state.pathParameters['roomId'] ?? '';
                           return _slidePage(
                             RoomTransferProgressScreen(roomId: roomId),
                             state,
@@ -158,6 +163,36 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         },
                       ),
                     ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/merge-space',
+                builder: (context, state) => const MergeSpaceScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'setup',
+                    pageBuilder: (context, state) =>
+                        _slidePage(const MergeSpaceScreen(), state),
+                  ),
+                  GoRoute(
+                    path: 'join',
+                    pageBuilder: (context, state) =>
+                        _slidePage(const MergeJoinScreen(), state),
+                  ),
+                  GoRoute(
+                    path: 'devices',
+                    pageBuilder: (context, state) =>
+                        _slidePage(const MergeDevicesScreen(), state),
+                  ),
+                  GoRoute(
+                    path: 'conflicts',
+                    pageBuilder: (context, state) =>
+                        _slidePage(const MergeConflictsScreen(), state),
                   ),
                 ],
               ),
