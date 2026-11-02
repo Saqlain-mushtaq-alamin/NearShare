@@ -43,6 +43,9 @@ dependencies:
   json_annotation: ^4.9.0
   shelf_multipart: ^2.0.1
   collection: ^1.18.0
+  crypto: ^3.0.8
+  cryptography: ^2.9.0
+  flutter_secure_storage: ^10.3.4
 
 dev_dependencies:
   flutter_test:
