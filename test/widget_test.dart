@@ -7,6 +7,7 @@ import 'package:nearshare/features/history/data/history_repository.dart';
 import 'package:nearshare/features/transfer/presentation/transfer_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'helpers/merge_space_test_helpers.dart';
 import 'helpers/presentation_stubs.dart';
 
 void main() {
@@ -39,6 +40,7 @@ void main() {
             transferStateProvider.overrideWith((ref) => harness.notifier),
             deviceIdentityServiceProvider
                 .overrideWithValue(FakeDeviceIdentityService()),
+            mergeSpaceTestOverride(),
           ],
           child: const NearShareApp(),
         ),

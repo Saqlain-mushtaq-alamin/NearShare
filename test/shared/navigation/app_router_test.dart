@@ -9,6 +9,7 @@ import 'package:nearshare/features/onboarding/application/onboarding_provider.da
 import 'package:nearshare/features/transfer/presentation/transfer_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/merge_space_test_helpers.dart';
 import '../../helpers/presentation_stubs.dart';
 
 TransferRecord historyEntry() {
@@ -75,6 +76,7 @@ void main() {
             transferStateProvider.overrideWith((ref) => harness.notifier),
             deviceIdentityServiceProvider
                 .overrideWithValue(FakeDeviceIdentityService()),
+            mergeSpaceTestOverride(),
           ],
           child: const NearShareApp(),
         ),
@@ -82,13 +84,14 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('shows a bottom navigation bar with four tabs', (tester) async {
+    testWidgets('shows a bottom navigation bar with five tabs', (tester) async {
       await pumpApp(tester);
 
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('History'), findsOneWidget);
       expect(find.text('Rooms'), findsOneWidget);
+      expect(find.text('Merge'), findsOneWidget);
       expect(find.text('Settings'), findsOneWidget);
     });
 
@@ -169,6 +172,7 @@ void main() {
             transferStateProvider.overrideWith((ref) => harness.notifier),
             deviceIdentityServiceProvider
                 .overrideWithValue(FakeDeviceIdentityService()),
+            mergeSpaceTestOverride(),
           ],
           child: const NearShareApp(),
         ),
