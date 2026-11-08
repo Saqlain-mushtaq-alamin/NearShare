@@ -144,7 +144,39 @@ void main() {
       expect(completedProgress!.status, TransferStatus.completed);
     });
 
-    test('finalize of a partially received file answers 409 with missing chunks',
+    test('zero-byte files finalize without sending chunks', () async {
+      final request = TransferRequest(
+        transferId: 'upload-tx-empty',
+        senderId: 'dev-sender',
+        senderName: 'Sender',
+        files: const [
+          TransferFile(
+            name: 'empty.bin',
+            sizeInBytes: 0,
+            mimeType: 'application/octet-stream',
+            localPath: '/empty.bin',
+          ),
+        ],
+        totalSizeBytes: 0,
+        timestamp: DateTime.now(),
+      );
+
+      await prepareAndAccept(request);
+
+      final finalizeRes = await server.handler(
+        Request('POST', url('/api/v1/transfer/finalize/upload-tx-empty/0')),
+      );
+      expect(finalizeRes.statusCode, 200);
+
+      final body =
+          jsonDecode(await finalizeRes.readAsString()) as Map<String, dynamic>;
+      final savedFile = File(body['savePath'] as String);
+      expect(await savedFile.exists(), isTrue);
+      expect(await savedFile.length(), 0);
+    });
+
+    test(
+        'finalize of a partially received file answers 409 with missing chunks',
         () async {
       const fileContent = 'Hello World!!';
       final request = TransferRequest(
@@ -299,8 +331,7 @@ void main() {
       );
       expect(res.statusCode, 200);
 
-      final body =
-          jsonDecode(await res.readAsString()) as Map<String, dynamic>;
+      final body = jsonDecode(await res.readAsString()) as Map<String, dynamic>;
       expect(body['known'], isTrue);
       expect(body['receivedChunks'], [0]);
       expect(body['fileComplete'], isFalse);

@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/security/content_security.dart';
 import '../../history/data/history_repository.dart';
 import '../../history/domain/transfer_record.dart';
 import '../../discovery/domain/device.dart';
@@ -73,6 +74,7 @@ class TransferManager {
   late final HistoryRepository _historyRepository;
 
   final Uuid _uuid;
+  final int maxParallelChunks;
 
   final StreamController<TransferProgress> _progressStreamController =
       StreamController<TransferProgress>.broadcast();
@@ -98,6 +100,7 @@ class TransferManager {
     ChunkManager? chunkManager,
     ConnectionMonitor? connectionMonitor,
     HistoryRepository? historyRepository,
+    this.maxParallelChunks = 4,
   }) : _uuid = uuid ?? const Uuid() {
     _storageService = storageService ??
         (server != null ? server.storageService : FileStorageService());
@@ -563,37 +566,63 @@ class TransferManager {
     required void Function(int chunkIndex, int sent, int total) onProgress,
     required void Function(int chunkIndex) onChunkSent,
   }) async {
-    for (final chunkIndex in chunkIndices) {
-      if (cancelToken.isCancelled) {
-        throw const TransferCancelledException();
+    if (chunkIndices.isEmpty) return;
+
+    final int workerCount =
+        maxParallelChunks.clamp(1, 16).clamp(1, chunkIndices.length);
+    var nextIndex = 0;
+    Object? failure;
+    StackTrace? failureStack;
+
+    Future<void> worker() async {
+      while (failure == null) {
+        final int position = nextIndex++;
+        if (position >= chunkIndices.length) return;
+        final int chunkIndex = chunkIndices[position];
+
+        try {
+          if (cancelToken.isCancelled) {
+            throw const TransferCancelledException();
+          }
+          if (_connectionLostSignals.contains(transferId)) {
+            throw const TransferConnectionLostException();
+          }
+
+          final chunk = plan[chunkIndex];
+          final bytes = await TransferClient.readChunk(
+            file.localPath,
+            chunk.startByte,
+            chunk.endByteExclusive,
+          );
+
+          await _client.uploadChunk(
+            target: target,
+            transferId: transferId,
+            fileIndex: fileIndex,
+            chunkIndex: chunkIndex,
+            bytes: bytes,
+            startByte: chunk.startByte,
+            endByte: chunk.endByte,
+            fileSize: file.sizeInBytes,
+            totalChunks: plan.length,
+            cancelToken: cancelToken,
+            onProgress: (sent, total) => onProgress(chunkIndex, sent, total),
+          );
+
+          onChunkSent(chunkIndex);
+          onProgress(chunkIndex, bytes.length, bytes.length);
+        } catch (error, stack) {
+          failure ??= error;
+          failureStack ??= stack;
+        }
       }
-      if (_connectionLostSignals.contains(transferId)) {
-        throw const TransferConnectionLostException();
-      }
+    }
 
-      final chunk = plan[chunkIndex];
-      final bytes = await TransferClient.readChunk(
-        file.localPath,
-        chunk.startByte,
-        chunk.endByteExclusive,
-      );
-
-      await _client.uploadChunk(
-        target: target,
-        transferId: transferId,
-        fileIndex: fileIndex,
-        chunkIndex: chunkIndex,
-        bytes: bytes,
-        startByte: chunk.startByte,
-        endByte: chunk.endByte,
-        fileSize: file.sizeInBytes,
-        totalChunks: plan.length,
-        cancelToken: cancelToken,
-        onProgress: (sent, total) => onProgress(chunkIndex, sent, total),
-      );
-
-      onChunkSent(chunkIndex);
-      onProgress(chunkIndex, bytes.length, bytes.length);
+    await Future.wait<void>(
+      List<Future<void>>.generate(workerCount, (_) => worker()),
+    );
+    if (failure != null) {
+      Error.throwWithStackTrace(failure!, failureStack!);
     }
   }
 
@@ -710,21 +739,26 @@ class TransferManager {
   Future<List<TransferFile>> _normalizeFiles(List<TransferFile> files) async {
     final normalized = <TransferFile>[];
     for (final file in files) {
-      if (file.localPath.isNotEmpty) {
-        final onDisk = File(file.localPath);
-        if (await onDisk.exists()) {
-          final size = await onDisk.length();
-          if (size != file.sizeInBytes) {
-            debugPrint(
-              '[TransferManager] ${file.name}: adjusting size '
-              '${file.sizeInBytes} -> $size',
-            );
-            normalized.add(file.copyWith(sizeInBytes: size));
-            continue;
-          }
-        }
+      if (file.localPath.isEmpty) {
+        normalized.add(file);
+        continue;
       }
-      normalized.add(file);
+      final onDisk = File(file.localPath);
+      if (!await onDisk.exists()) {
+        normalized.add(file);
+        continue;
+      }
+
+      final size = await onDisk.length();
+      if (size != file.sizeInBytes) {
+        debugPrint(
+          '[TransferManager] ${file.name}: adjusting size '
+          '${file.sizeInBytes} -> $size',
+        );
+      }
+      final String hash =
+          file.sha256 ?? await FileChecksum.sha256OfFile(file.localPath);
+      normalized.add(file.copyWith(sizeInBytes: size, sha256: hash));
     }
     return normalized;
   }
