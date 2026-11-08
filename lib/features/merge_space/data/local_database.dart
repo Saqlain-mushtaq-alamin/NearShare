@@ -5,6 +5,8 @@ import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../../core/security/database_key.dart';
+
 part 'local_database.g.dart';
 
 class MergeSpaceFiles extends Table {
@@ -77,7 +79,7 @@ MergeSpaceDatabase openDefaultMergeSpaceDatabase() {
   return MergeSpaceDatabase(
     LazyDatabase(() async {
       final file = await defaultMergeSpaceDatabaseFile();
-      return NativeDatabase(file);
+      return DatabaseKeyService.mergeSpace.openFile(file);
     }),
   );
 }
