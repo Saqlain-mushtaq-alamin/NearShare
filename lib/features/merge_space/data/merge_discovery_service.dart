@@ -102,6 +102,7 @@ class BonsoirMergeDiscoveryService implements MergeDiscoveryService {
         },
       );
       _broadcast = BonsoirBroadcast(service: service);
+      await _broadcast!.initialize();
       await _broadcast!.start();
       debugPrint('[MergeDiscovery] Broadcasting Merge Space on port $port');
     } catch (error, stack) {
@@ -135,6 +136,7 @@ class BonsoirMergeDiscoveryService implements MergeDiscoveryService {
 
     try {
       _discovery = BonsoirDiscovery(type: serviceType);
+      await _discovery!.initialize();
       _subscription = _discovery!.eventStream?.listen(
         _handleEvent,
         onError: (Object error) {

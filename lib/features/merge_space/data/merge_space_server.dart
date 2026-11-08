@@ -8,6 +8,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
+import '../../../core/security/network_security.dart';
 import '../domain/merge_space_file.dart';
 import '../domain/paired_device.dart';
 import 'merge_crypto.dart';
@@ -33,6 +34,7 @@ class MergeSpaceServer {
   final MergeSpaceStorage _storage;
   final MergeCrypto _crypto;
   final String Function() _localDeviceId;
+  final ServerSecurityConfig? _securityConfig;
 
   HttpServer? _server;
   int? _boundPort;
@@ -46,7 +48,9 @@ class MergeSpaceServer {
     required MergeSpaceStorage storage,
     required String Function() localDeviceId,
     MergeCrypto? crypto,
-  })  : _groupProvider = groupProvider,
+    ServerSecurityConfig? securityConfig,
+  })  : _securityConfig = securityConfig,
+        _groupProvider = groupProvider,
         _onPair = onPair,
         _buildIndex = buildIndex,
         _onFileReceived = onFileReceived,
@@ -81,8 +85,15 @@ class MergeSpaceServer {
     }
 
     await stop();
-    final pipeline =
-        const Pipeline().addMiddleware(logRequests()).addHandler(handler);
+    final securityConfig = _securityConfig;
+    final pipeline = const Pipeline()
+        .addMiddleware(logRequests())
+        .addMiddleware(
+          securityConfig == null
+              ? (inner) => inner
+              : (inner) => securityMiddleware(inner, config: securityConfig),
+        )
+        .addHandler(handler);
 
     try {
       _server = await shelf_io.serve(
