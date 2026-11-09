@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../shared/theme/app_theme.dart';
 import '../domain/transfer_progress.dart';
 import 'transfer_provider.dart';
 
@@ -24,6 +26,7 @@ class TransferProgressScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final palette = AppTheme.paletteOf(context);
     final transferState = ref.watch(transferStateProvider);
     final progress = transferState.activeProgress;
     final targetDevice = transferState.selectedTargetDevice;
@@ -44,6 +47,36 @@ class TransferProgressScreen extends ConsumerWidget {
     final currentFile = progress?.currentFileName ?? 'Preparing files...';
     final percentage = progress?.percentage ?? 0.0;
     final status = progress?.status ?? TransferStatus.pending;
+    final isResuming = progress?.isResuming ?? false;
+    final isConnectionLost = progress?.isConnectionLost ?? false;
+
+    final String centerLabel;
+    if (status == TransferStatus.pending) {
+      centerLabel = 'Waiting...';
+    } else if (status == TransferStatus.rejected) {
+      centerLabel = 'Rejected';
+    } else if (status == TransferStatus.completed) {
+      centerLabel = 'Done!';
+    } else if (status == TransferStatus.cancelled) {
+      centerLabel = 'Cancelled';
+    } else if (status == TransferStatus.failed) {
+      centerLabel = 'Failed';
+    } else if (isConnectionLost) {
+      centerLabel = 'Paused';
+    } else if (isResuming) {
+      centerLabel = 'Resuming';
+    } else {
+      centerLabel = 'Transferring';
+    }
+
+    String? resumeHint;
+    if (isConnectionLost) {
+      resumeHint = 'Connection lost — will resume when device is found';
+    } else if (isResuming) {
+      resumeHint = 'Resuming transfer...';
+    }
+
+    final chunkLabel = progress?.chunkLabel;
 
     return PopScope(
       canPop: false,
@@ -66,45 +99,45 @@ class TransferProgressScreen extends ConsumerWidget {
                 const Spacer(),
 
                 // Progress Graphic
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 180,
-                      height: 180,
-                      child: CircularProgressIndicator(
-                        value: status == TransferStatus.pending ? null : percentage,
-                        strokeWidth: 10,
-                        backgroundColor:
-                            theme.colorScheme.primary.withValues(alpha: 0.15),
-                        strokeCap: StrokeCap.round,
+                Hero(
+                  tag: 'transfer-status-icon',
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 180,
+                        height: 180,
+                        child: CircularProgressIndicator(
+                          value: status == TransferStatus.pending ? null : percentage,
+                          strokeWidth: 10,
+                          color: palette.progress,
+                          backgroundColor:
+                              palette.progress.withValues(alpha: 0.15),
+                          strokeCap: StrokeCap.round,
+                        ),
                       ),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${(percentage * 100).toStringAsFixed(0)}%',
-                          style: theme.textTheme.displaySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.primary,
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${(percentage * 100).toStringAsFixed(0)}%',
+                            style: theme.textTheme.displaySmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.primary,
+                            ),
                           ),
-                        ),
-                        Text(
-                          status == TransferStatus.pending
-                              ? 'Waiting...'
-                              : (status == TransferStatus.rejected
-                                  ? 'Rejected'
-                                  : (status == TransferStatus.completed
-                                      ? 'Done!'
-                                      : 'Transferring')),
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                          Text(
+                            centerLabel,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: isConnectionLost
+                                  ? theme.colorScheme.error
+                                  : theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 32),
@@ -137,6 +170,36 @@ class TransferProgressScreen extends ConsumerWidget {
                         color: theme.colorScheme.primary,
                         fontWeight: FontWeight.w600,
                       ),
+                    ),
+                  ),
+
+                if (resumeHint != null || chunkLabel != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Column(
+                      children: [
+                        if (resumeHint != null)
+                          Text(
+                            resumeHint,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: isConnectionLost
+                                  ? theme.colorScheme.error
+                                  : theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        if (resumeHint != null && chunkLabel != null)
+                          const SizedBox(height: 2),
+                        if (chunkLabel != null && chunkLabel != resumeHint)
+                          Text(
+                            chunkLabel,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
 

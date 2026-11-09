@@ -78,12 +78,24 @@ void main() {
       expect(incoming, isNotNull);
       expect(incoming!.transferId, 'recv-mgr-1');
 
-      final uploadResult = await client.uploadFile(
-        target,
-        'recv-mgr-1',
+      final bytes = await TransferClient.readChunk(
+        transferFile.localPath,
         0,
-        transferFile,
+        transferFile.sizeInBytes,
       );
+      await client.uploadChunk(
+        target: target,
+        transferId: 'recv-mgr-1',
+        fileIndex: 0,
+        chunkIndex: 0,
+        bytes: bytes,
+        startByte: 0,
+        endByte: transferFile.sizeInBytes - 1,
+        fileSize: transferFile.sizeInBytes,
+        totalChunks: 1,
+      );
+
+      final uploadResult = await client.finalizeFile(target, 'recv-mgr-1', 0);
       expect(uploadResult['status'], 'completed');
     });
 

@@ -5,8 +5,15 @@ import 'package:go_router/go_router.dart';
 import 'package:nearshare/features/discovery/domain/device.dart';
 import 'package:nearshare/features/discovery/presentation/discovery_provider.dart';
 import 'package:nearshare/features/transfer/presentation/device_select_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   group('DeviceSelectScreen Widget Tests', () {
     testWidgets('Renders radar scanning state when device list is empty', (tester) async {
       await tester.pumpWidget(
@@ -18,7 +25,7 @@ void main() {
       );
 
       expect(find.text('Select Recipient'), findsOneWidget);
-      expect(find.text('Searching for nearby devices...'), findsOneWidget);
+      expect(find.text('Searching for nearby devices\u2026'), findsOneWidget);
     });
 
     testWidgets('Renders discovered devices and handles device selection', (tester) async {

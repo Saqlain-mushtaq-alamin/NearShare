@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Nearshare</string>
+	<string>NearShare</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -47,6 +47,13 @@
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>NearShare needs local network access to discover nearby devices for fast local Wi-Fi file transfer.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>NearShare uses Face ID to unlock the app and protect local transfer history.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_nearshare._tcp</string>

@@ -14,6 +14,21 @@ enum TransferStatus {
       this == TransferStatus.rejected;
 }
 
+/// UI-facing qualifier layered on top of [TransferStatus].
+///
+/// A transfer can be `inProgress` while it is reconnecting to the peer, which
+/// is not visible from the status alone.
+enum TransferPhase {
+  /// Normal, uninterrupted transmission.
+  normal,
+
+  /// Re-establishing the session and skipping chunks the peer already has.
+  resuming,
+
+  /// The peer became unreachable; the transfer continues once it is found.
+  connectionLost,
+}
+
 class TransferProgress {
   final String transferId;
   final int currentFileIndex;
@@ -24,6 +39,9 @@ class TransferProgress {
   final TransferStatus status;
   final String? currentFileName;
   final String? errorMessage;
+  final TransferPhase phase;
+  final int? currentChunk;
+  final int? totalChunks;
 
   const TransferProgress({
     required this.transferId,
@@ -35,6 +53,9 @@ class TransferProgress {
     required this.status,
     this.currentFileName,
     this.errorMessage,
+    this.phase = TransferPhase.normal,
+    this.currentChunk,
+    this.totalChunks,
   });
 
   double get percentage {
@@ -43,6 +64,18 @@ class TransferProgress {
     if (p < 0.0) return 0.0;
     if (p > 1.0) return 1.0;
     return p;
+  }
+
+  bool get isResuming => phase == TransferPhase.resuming;
+
+  bool get isConnectionLost => phase == TransferPhase.connectionLost;
+
+  /// `Chunk 15/50` when chunk information is known, otherwise `null`.
+  ///
+  /// [currentChunk] is a 0-based index; the label is 1-based for readability.
+  String? get chunkLabel {
+    if (currentChunk == null || totalChunks == null) return null;
+    return 'Chunk ${currentChunk! + 1}/$totalChunks';
   }
 
   String get speedFormatted {
@@ -80,6 +113,13 @@ class TransferProgress {
     TransferStatus? status,
     String? currentFileName,
     String? errorMessage,
+    TransferPhase? phase,
+    int? currentChunk,
+    int? totalChunks,
+    bool clearCurrentFileName = false,
+    bool clearErrorMessage = false,
+    bool clearCurrentChunk = false,
+    bool clearTotalChunks = false,
   }) {
     return TransferProgress(
       transferId: transferId ?? this.transferId,
@@ -89,8 +129,16 @@ class TransferProgress {
       totalBytes: totalBytes ?? this.totalBytes,
       speedBps: speedBps ?? this.speedBps,
       status: status ?? this.status,
-      currentFileName: currentFileName ?? this.currentFileName,
-      errorMessage: errorMessage ?? this.errorMessage,
+      currentFileName: clearCurrentFileName
+          ? null
+          : (currentFileName ?? this.currentFileName),
+      errorMessage: clearErrorMessage
+          ? null
+          : (errorMessage ?? this.errorMessage),
+      phase: phase ?? this.phase,
+      currentChunk:
+          clearCurrentChunk ? null : (currentChunk ?? this.currentChunk),
+      totalChunks: clearTotalChunks ? null : (totalChunks ?? this.totalChunks),
     );
   }
 
@@ -103,8 +151,11 @@ class TransferProgress {
       'totalBytes': totalBytes,
       'speedBps': speedBps,
       'status': status.name,
+      'phase': phase.name,
       if (currentFileName != null) 'currentFileName': currentFileName,
       if (errorMessage != null) 'errorMessage': errorMessage,
+      if (currentChunk != null) 'currentChunk': currentChunk,
+      if (totalChunks != null) 'totalChunks': totalChunks,
     };
   }
 
@@ -122,6 +173,12 @@ class TransferProgress {
       ),
       currentFileName: json['currentFileName'] as String?,
       errorMessage: json['errorMessage'] as String?,
+      phase: TransferPhase.values.firstWhere(
+        (p) => p.name == json['phase'],
+        orElse: () => TransferPhase.normal,
+      ),
+      currentChunk: json['currentChunk'] as int?,
+      totalChunks: json['totalChunks'] as int?,
     );
   }
 
@@ -138,7 +195,10 @@ class TransferProgress {
           speedBps == other.speedBps &&
           status == other.status &&
           currentFileName == other.currentFileName &&
-          errorMessage == other.errorMessage;
+          errorMessage == other.errorMessage &&
+          phase == other.phase &&
+          currentChunk == other.currentChunk &&
+          totalChunks == other.totalChunks;
 
   @override
   int get hashCode =>
@@ -150,7 +210,10 @@ class TransferProgress {
       speedBps.hashCode ^
       status.hashCode ^
       currentFileName.hashCode ^
-      errorMessage.hashCode;
+      errorMessage.hashCode ^
+      phase.hashCode ^
+      currentChunk.hashCode ^
+      totalChunks.hashCode;
 
   @override
   String toString() {

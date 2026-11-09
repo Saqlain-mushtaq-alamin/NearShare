@@ -59,41 +59,47 @@ class DeviceIdentityService {
     // Generate a friendly default name based on hardware
     String generatedName = 'NearShare Peer';
     try {
-      if (kIsWeb) {
-        final webInfo = await _deviceInfo.webBrowserInfo;
-        generatedName = '${webInfo.browserName.name.toUpperCase()} Web';
-      } else {
-        if (Platform.isAndroid) {
-          final androidInfo = await _deviceInfo.androidInfo;
-          generatedName = androidInfo.model.isNotEmpty
-              ? androidInfo.model
-              : (androidInfo.brand.isNotEmpty ? androidInfo.brand : 'Android Device');
-        } else if (Platform.isIOS) {
-          final iosInfo = await _deviceInfo.iosInfo;
-          generatedName = iosInfo.name.isNotEmpty
-              ? iosInfo.name
-              : (iosInfo.model.isNotEmpty ? iosInfo.model : 'iPhone');
-        } else if (Platform.isWindows) {
-          final windowsInfo = await _deviceInfo.windowsInfo;
-          generatedName = windowsInfo.computerName.isNotEmpty
-              ? windowsInfo.computerName
-              : 'Windows PC';
-        } else if (Platform.isMacOS) {
-          final macInfo = await _deviceInfo.macOsInfo;
-          generatedName = macInfo.computerName.isNotEmpty
-              ? macInfo.computerName
-              : 'MacBook';
-        } else if (Platform.isLinux) {
-          final linuxInfo = await _deviceInfo.linuxInfo;
-          generatedName = linuxInfo.name.isNotEmpty ? linuxInfo.name : 'Linux PC';
-        }
-      }
+      generatedName = await _hardwareName();
     } catch (_) {
       generatedName = '${getPlatformName().toUpperCase()} Device';
     }
 
     await prefs.setString(_prefDeviceNameKey, generatedName);
     return generatedName;
+  }
+
+  Future<String> _hardwareName() async {
+    if (kIsWeb) {
+      final webInfo = await _deviceInfo.webBrowserInfo;
+      return '${webInfo.browserName.name.toUpperCase()} Web';
+    }
+    if (Platform.isAndroid) {
+      final androidInfo = await _deviceInfo.androidInfo;
+      return androidInfo.model.isNotEmpty
+          ? androidInfo.model
+          : (androidInfo.brand.isNotEmpty ? androidInfo.brand : 'Android Device');
+    }
+    if (Platform.isIOS) {
+      final iosInfo = await _deviceInfo.iosInfo;
+      return iosInfo.name.isNotEmpty
+          ? iosInfo.name
+          : (iosInfo.model.isNotEmpty ? iosInfo.model : 'iPhone');
+    }
+    if (Platform.isWindows) {
+      final windowsInfo = await _deviceInfo.windowsInfo;
+      return windowsInfo.computerName.isNotEmpty
+          ? windowsInfo.computerName
+          : 'Windows PC';
+    }
+    if (Platform.isMacOS) {
+      final macInfo = await _deviceInfo.macOsInfo;
+      return macInfo.computerName.isNotEmpty ? macInfo.computerName : 'MacBook';
+    }
+    if (Platform.isLinux) {
+      final linuxInfo = await _deviceInfo.linuxInfo;
+      return linuxInfo.name.isNotEmpty ? linuxInfo.name : 'Linux PC';
+    }
+    return 'NearShare Peer';
   }
 
   Future<void> setDeviceName(String newName) async {

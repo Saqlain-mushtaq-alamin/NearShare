@@ -115,6 +115,7 @@ class _NoOpMdnsService extends Fake implements MdnsDiscoveryService {
     required String deviceName,
     required String platform,
     required int port,
+    String? tlsFingerprint,
   }) async {}
 
   @override

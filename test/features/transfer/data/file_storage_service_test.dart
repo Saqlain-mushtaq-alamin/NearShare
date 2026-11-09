@@ -34,7 +34,8 @@ void main() {
       );
     });
 
-    test('prepareDestinationFile creates unique deduplicated filenames', () async {
+    test('prepareDestinationFile creates unique deduplicated filenames',
+        () async {
       final file1 = await storageService.prepareDestinationFile('document.pdf');
       expect(p.basename(file1.path), 'document.pdf');
       await file1.writeAsString('file 1 content');
@@ -47,6 +48,42 @@ void main() {
       // Third file with same name
       final file3 = await storageService.prepareDestinationFile('document.pdf');
       expect(p.basename(file3.path), 'document (2).pdf');
+    });
+
+    test('preserves unicode and emoji file names', () {
+      const name = '😀 vacation – 日本.png';
+      expect(storageService.sanitizeFileName(name), name);
+    });
+
+    test('truncates long names without splitting emoji or extension', () {
+      final name = '${'😀' * 150}.webp';
+      final sanitized = storageService.sanitizeFileName(name);
+
+      expect(
+        sanitized.length,
+        lessThanOrEqualTo(FileStorageService.maxFileNameLength),
+      );
+      expect(sanitized, endsWith('.webp'));
+      expect(sanitized.runes.every((rune) => rune != 0xFFFD), isTrue);
+      final highSurrogates = sanitized.codeUnits
+          .where((unit) => unit >= 0xD800 && unit <= 0xDBFF)
+          .length;
+      final lowSurrogates = sanitized.codeUnits
+          .where((unit) => unit >= 0xDC00 && unit <= 0xDFFF)
+          .length;
+      expect(highSurrogates, lowSurrogates);
+    });
+
+    test('prefixes Windows reserved device names', () {
+      expect(storageService.sanitizeFileName('CON.txt'), '_CON.txt');
+      expect(storageService.sanitizeFileName('lpt9.log'), '_lpt9.log');
+    });
+
+    test('prepareDestinationFile supports zero-byte files', () async {
+      final file = await storageService.prepareDestinationFile('empty.bin');
+      await file.writeAsBytes(const <int>[]);
+      expect(await file.exists(), isTrue);
+      expect(await file.length(), 0);
     });
 
     test('deleteIncompleteFile removes file when present', () async {

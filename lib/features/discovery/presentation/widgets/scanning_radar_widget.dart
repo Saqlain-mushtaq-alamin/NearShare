@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/utils/is_test_env.dart';
+
 class ScanningRadarWidget extends StatefulWidget {
   final double size;
   final bool isScanning;
@@ -25,7 +27,7 @@ class _ScanningRadarWidgetState extends State<ScanningRadarWidget>
       vsync: this,
       duration: const Duration(milliseconds: 2400),
     );
-    if (widget.isScanning) {
+    if (widget.isScanning && !isRunningUnderTest) {
       _controller.repeat();
     }
   }
@@ -33,7 +35,7 @@ class _ScanningRadarWidgetState extends State<ScanningRadarWidget>
   @override
   void didUpdateWidget(covariant ScanningRadarWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isScanning && !_controller.isAnimating) {
+    if (widget.isScanning && !isRunningUnderTest && !_controller.isAnimating) {
       _controller.repeat();
     } else if (!widget.isScanning && _controller.isAnimating) {
       _controller.stop();

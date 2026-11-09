@@ -14,6 +14,7 @@ abstract class MdnsDiscoveryService {
     required String deviceName,
     required String platform,
     required int port,
+    String? tlsFingerprint,
   });
 
   Future<void> stopBroadcast();
@@ -59,6 +60,7 @@ class BonsoirMdnsDiscoveryService implements MdnsDiscoveryService {
     required String deviceName,
     required String platform,
     required int port,
+    String? tlsFingerprint,
   }) async {
     if (kIsWeb) {
       debugPrint('[BonsoirMdns] mDNS broadcast skipped on Web platform');
@@ -78,10 +80,13 @@ class BonsoirMdnsDiscoveryService implements MdnsDiscoveryService {
           'id': deviceId,
           'name': deviceName,
           'platform': platform,
+          if (tlsFingerprint != null && tlsFingerprint.isNotEmpty)
+            'fp': tlsFingerprint,
         },
       );
 
       _broadcast = BonsoirBroadcast(service: service);
+      await _broadcast!.initialize();
       await _broadcast!.start();
       _isBroadcasting = true;
       debugPrint('[BonsoirMdns] Broadcast started for $deviceName (ID: $deviceId) on port $port');
@@ -117,6 +122,7 @@ class BonsoirMdnsDiscoveryService implements MdnsDiscoveryService {
 
     try {
       _discovery = BonsoirDiscovery(type: serviceType);
+      await _discovery!.initialize();
       _discoverySubscription = _discovery!.eventStream?.listen(
         _handleDiscoveryEvent,
         onError: (err) {
@@ -148,6 +154,7 @@ class BonsoirMdnsDiscoveryService implements MdnsDiscoveryService {
       final peerPlatform = attributes['platform'] ?? 'unknown';
       final peerIp = service.host ?? '';
       final peerPort = service.port;
+      final peerFingerprint = attributes['fp'];
 
       // Ignore own broadcast
       if (_currentLocalDeviceId != null && peerId == _currentLocalDeviceId) {
@@ -162,6 +169,7 @@ class BonsoirMdnsDiscoveryService implements MdnsDiscoveryService {
         ipAddress: peerIp,
         port: peerPort,
         discoveredAt: DateTime.now(),
+        certFingerprint: peerFingerprint,
       );
 
       debugPrint('[BonsoirMdns] Discovered device: ${device.name} ($peerIp:$peerPort)');

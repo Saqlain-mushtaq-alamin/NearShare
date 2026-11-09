@@ -5,6 +5,7 @@ class Device {
   final String ipAddress;
   final int port;
   final DateTime discoveredAt;
+  final String? certFingerprint;
 
   const Device({
     required this.id,
@@ -13,6 +14,7 @@ class Device {
     required this.ipAddress,
     required this.port,
     required this.discoveredAt,
+    this.certFingerprint,
   });
 
   Device copyWith({
@@ -22,6 +24,7 @@ class Device {
     String? ipAddress,
     int? port,
     DateTime? discoveredAt,
+    String? certFingerprint,
   }) {
     return Device(
       id: id ?? this.id,
@@ -30,6 +33,7 @@ class Device {
       ipAddress: ipAddress ?? this.ipAddress,
       port: port ?? this.port,
       discoveredAt: discoveredAt ?? this.discoveredAt,
+      certFingerprint: certFingerprint ?? this.certFingerprint,
     );
   }
 
@@ -41,6 +45,7 @@ class Device {
       'ipAddress': ipAddress,
       'port': port,
       'discoveredAt': discoveredAt.toIso8601String(),
+      if (certFingerprint != null) 'certFingerprint': certFingerprint,
     };
   }
 
@@ -54,6 +59,7 @@ class Device {
       discoveredAt: json['discoveredAt'] != null
           ? DateTime.tryParse(json['discoveredAt'] as String) ?? DateTime.now()
           : DateTime.now(),
+      certFingerprint: json['certFingerprint'] as String?,
     );
   }
 
@@ -66,7 +72,8 @@ class Device {
           name == other.name &&
           platform == other.platform &&
           ipAddress == other.ipAddress &&
-          port == other.port;
+          port == other.port &&
+          certFingerprint == other.certFingerprint;
 
   @override
   int get hashCode =>

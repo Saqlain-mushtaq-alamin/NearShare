@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/security/tls_identity.dart';
 import '../data/device_identity_service.dart';
 import '../data/mdns_discovery_service.dart';
 import '../domain/device.dart';
@@ -8,6 +9,10 @@ import '../domain/discovery_state.dart';
 
 final deviceIdentityServiceProvider = Provider<DeviceIdentityService>((ref) {
   return DeviceIdentityService();
+});
+
+final tlsIdentityServiceProvider = Provider<TlsIdentityService>((ref) {
+  return TlsIdentityService.instance;
 });
 
 final mdnsDiscoveryServiceProvider = Provider<MdnsDiscoveryService>((ref) {
@@ -20,26 +25,47 @@ final discoveryStateProvider =
     StateNotifierProvider<DiscoveryNotifier, DiscoveryState>((ref) {
   final identityService = ref.watch(deviceIdentityServiceProvider);
   final discoveryService = ref.watch(mdnsDiscoveryServiceProvider);
-  return DiscoveryNotifier(identityService, discoveryService);
+  final tlsService = ref.watch(tlsIdentityServiceProvider);
+  return DiscoveryNotifier(
+    identityService,
+    discoveryService,
+    fingerprintProvider: () async {
+      final local = await identityService.getLocalDevice();
+      final identity = await tlsService.loadOrCreate(
+        commonName: local.name,
+      );
+      return identity.fingerprint;
+    },
+  );
 });
 
 class DiscoveryNotifier extends StateNotifier<DiscoveryState>
     with WidgetsBindingObserver {
   final DeviceIdentityService _identityService;
   final MdnsDiscoveryService _discoveryService;
+  final Future<String?> Function()? _fingerprintProvider;
 
   StreamSubscription<Device>? _discoveredSub;
   StreamSubscription<String>? _lostSub;
   bool _initialized = false;
 
-  DiscoveryNotifier(this._identityService, this._discoveryService)
-      : super(const DiscoveryState()) {
+  DiscoveryNotifier(
+    this._identityService,
+    this._discoveryService, {
+    Future<String?> Function()? fingerprintProvider,
+  })  : _fingerprintProvider = fingerprintProvider,
+        super(const DiscoveryState()) {
     WidgetsBinding.instance.addObserver(this);
     _initialize();
   }
 
+  /// Tests subclass [DiscoveryNotifier] with in-memory collaborators and seed
+  /// their own state; they override this to skip the auto-start side effects.
+  @protected
+  bool get autoInitialize => true;
+
   Future<void> _initialize() async {
-    if (_initialized) return;
+    if (_initialized || !autoInitialize) return;
     _initialized = true;
 
     try {
@@ -97,11 +123,19 @@ class DiscoveryNotifier extends StateNotifier<DiscoveryState>
       var local = state.localDevice;
       local ??= await _identityService.getLocalDevice();
 
+      String? fingerprint;
+      try {
+        fingerprint = await _fingerprintProvider?.call();
+      } catch (e) {
+        debugPrint('[DiscoveryNotifier] TLS identity unavailable: $e');
+      }
+
       await _discoveryService.startBroadcast(
         deviceId: local.id,
         deviceName: local.name,
         platform: local.platform,
         port: local.port,
+        tlsFingerprint: fingerprint,
       );
 
       state = state.copyWith(
