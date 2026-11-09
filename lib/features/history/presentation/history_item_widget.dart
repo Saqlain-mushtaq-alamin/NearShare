@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import '../../../shared/utils/formatters.dart';
 import '../domain/file_kind.dart';
@@ -30,95 +33,126 @@ class HistoryItemWidget extends StatelessWidget {
     final theme = Theme.of(context);
     final isSent = record.isSent;
 
-    return Dismissible(
-      key: ValueKey('history-${record.transferId}'),
-      direction:
-          canResend ? DismissDirection.horizontal : DismissDirection.endToStart,
-      dismissThresholds: const {DismissDirection.startToEnd: 0.4},
-      confirmDismiss: (direction) async {
-        if (direction == DismissDirection.startToEnd) {
-          onResend?.call();
-          return false;
-        }
-        return _confirmDelete(context, theme);
+    return Semantics(
+      button: onTap != null,
+      label: _semanticLabel,
+      hint: onTap == null ? null : 'Double tap for details',
+      onTap: onTap,
+      excludeSemantics: true,
+      customSemanticsActions: {
+        if (onResend != null)
+          const CustomSemanticsAction(label: 'Resend'): onResend!,
+        if (onDelete != null)
+          const CustomSemanticsAction(label: 'Delete'): () {
+            unawaited(_deleteWithConfirmation(context));
+          },
       },
-      onDismissed: (_) => onDelete?.call(),
-      background: Container(
-        color: theme.colorScheme.primaryContainer,
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Icon(Icons.refresh, color: theme.colorScheme.onPrimaryContainer),
-      ),
-      secondaryBackground: Container(
-        color: theme.colorScheme.errorContainer,
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child:
-            Icon(Icons.delete_outline, color: theme.colorScheme.onErrorContainer),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: isSent
-                      ? theme.colorScheme.primaryContainer
-                      : theme.colorScheme.tertiaryContainer,
-                  child: Icon(
-                    isSent ? Icons.north_east : Icons.south_west,
-                    size: 20,
-                    color: isSent
-                        ? theme.colorScheme.onPrimaryContainer
-                        : theme.colorScheme.onTertiaryContainer,
+      child: Dismissible(
+        key: ValueKey('history-${record.transferId}'),
+        direction: canResend
+            ? DismissDirection.horizontal
+            : DismissDirection.endToStart,
+        dismissThresholds: const {DismissDirection.startToEnd: 0.4},
+        confirmDismiss: (direction) async {
+          if (direction == DismissDirection.startToEnd) {
+            onResend?.call();
+            return false;
+          }
+          return _confirmDelete(context, theme);
+        },
+        onDismissed: (_) => onDelete?.call(),
+        background: Container(
+          color: theme.colorScheme.primaryContainer,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child:
+              Icon(Icons.refresh, color: theme.colorScheme.onPrimaryContainer),
+        ),
+        secondaryBackground: Container(
+          color: theme.colorScheme.errorContainer,
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Icon(
+            Icons.delete_outline,
+            color: theme.colorScheme.onErrorContainer,
+          ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: isSent
+                        ? theme.colorScheme.primaryContainer
+                        : theme.colorScheme.tertiaryContainer,
+                    child: Icon(
+                      isSent ? Icons.north_east : Icons.south_west,
+                      size: 20,
+                      color: isSent
+                          ? theme.colorScheme.onPrimaryContainer
+                          : theme.colorScheme.onTertiaryContainer,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        record.peerDeviceName,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          record.peerDeviceName,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${record.directionLabel} · '
-                        '${fileCountLabel(record.totalFiles, record.totalSizeBytes)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                        const SizedBox(height: 2),
+                        Text(
+                          '${record.directionLabel} · '
+                          '${fileCountLabel(record.totalFiles, record.totalSizeBytes)}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$_statusLabel · ${formatTimestamp(record.timestamp)}',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: _statusColor(theme),
-                          fontWeight: FontWeight.w600,
+                        const SizedBox(height: 2),
+                        Text(
+                          '$_statusLabel · ${formatTimestamp(record.timestamp)}',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: _statusColor(theme),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                _StatusIcon(status: record.status),
-              ],
+                  const SizedBox(width: 8),
+                  _StatusIcon(status: record.status),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  String get _semanticLabel {
+    final direction = record.isSent ? 'Sent to' : 'Received from';
+    return '$direction ${record.peerDeviceName}, '
+        '${fileCountLabel(record.totalFiles, record.totalSizeBytes)}, '
+        '$_statusLabel, ${formatTimestamp(record.timestamp)}';
+  }
+
+  Future<void> _deleteWithConfirmation(BuildContext context) async {
+    final confirmed = await _confirmDelete(context, Theme.of(context));
+    if (confirmed) onDelete?.call();
   }
 
   String get _statusLabel {

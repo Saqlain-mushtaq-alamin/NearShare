@@ -24,6 +24,15 @@ Device _localDevice() => Device(
       discoveredAt: DateTime(2026, 1, 1),
     );
 
+Device _peerDevice() => Device(
+      id: 'peer-1',
+      name: 'Sara\u2019s Phone',
+      platform: 'android',
+      ipAddress: '192.168.1.15',
+      port: 53317,
+      discoveredAt: DateTime(2026, 1, 1),
+    );
+
 DiscoveryState _homeDiscoveryState({
   bool broadcasting = true,
   List<Device> devices = const [],
@@ -183,10 +192,80 @@ void main() {
     });
 
     testWidgets('receiving indicator reflects a paused server', (tester) async {
-      await pumpHome(tester, discoveryState: _homeDiscoveryState(broadcasting: false));
+      await pumpHome(
+        tester,
+        discoveryState: _homeDiscoveryState(broadcasting: false),
+      );
 
       expect(find.text('Receiving is paused'), findsOneWidget);
       expect(find.text('Ready to receive'), findsNothing);
+    });
+
+    testWidgets('exposes descriptive semantics for interactive elements',
+        (tester) async {
+      await pumpHome(
+        tester,
+        discoveryState: _homeDiscoveryState(devices: [_peerDevice()]),
+      );
+      final semantics = tester.ensureSemantics();
+
+      expect(
+        find.bySemanticsLabel('Send files to a nearby device'),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel('Receiving files is on'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          RegExp(
+            '^Sara\u2019s Phone, ANDROID device, 192\\.168\\.1\\.15:53317\$',
+          ),
+        ),
+        findsOneWidget,
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('keeps interactive targets at least 48dp tall', (tester) async {
+      await pumpHome(
+        tester,
+        discoveryState: _homeDiscoveryState(devices: [_peerDevice()]),
+        seedHistory: true,
+      );
+
+      final targets = <Finder>[
+        find.byKey(const ValueKey('home-send-files')),
+        find.byKey(const ValueKey('home-receive-toggle')),
+        find.byKey(const ValueKey('device-peer-1')),
+        find.byKey(const ValueKey('home-refresh-button')),
+        find.byKey(const ValueKey('discovery-scan-toggle')),
+        find.widgetWithText(TextButton, 'See all'),
+        find.byType(FloatingActionButton),
+      ];
+
+      for (final target in targets) {
+        expect(target, findsOneWidget);
+        expect(
+          tester.getSize(target).height,
+          greaterThanOrEqualTo(48),
+          reason: 'Small tap target: $target',
+        );
+      }
+    });
+
+    testWidgets('lays out without overflow at 200% text scaling',
+        (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      await pumpHome(
+        tester,
+        discoveryState: _homeDiscoveryState(devices: [_peerDevice()]),
+        seedHistory: true,
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Send files'), findsOneWidget);
+      expect(find.text('Sara\u2019s Phone'), findsWidgets);
     });
   });
 }
