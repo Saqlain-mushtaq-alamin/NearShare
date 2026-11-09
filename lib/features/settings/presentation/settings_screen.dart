@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/security/app_lock.dart';
 import '../../../shared/theme/app_spacing.dart';
 import '../../../shared/theme/app_text_styles.dart';
 import '../../../shared/utils/formatters.dart';
@@ -23,6 +24,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final settings = ref.watch(settingsProvider);
+    final appLock = ref.watch(appLockProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings'), scrolledUnderElevation: 2),
@@ -143,6 +145,39 @@ class SettingsScreen extends ConsumerWidget {
                       title: Text('Language'),
                       subtitle: Text('System default'),
                     ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.lock_outline),
+                      title: const Text('App lock'),
+                      subtitle: const Text(
+                        'Require your device PIN, password, or biometrics.',
+                      ),
+                      value: appLock.isEnabled,
+                      onChanged: appLock.isBusy
+                          ? null
+                          : (value) async {
+                              final ok = await ref
+                                  .read(appLockProvider.notifier)
+                                  .setEnabled(value);
+                              if (!ok && context.mounted) {
+                                final error =
+                                    ref.read(appLockProvider).errorMessage;
+                                if (error != null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(error)),
+                                  );
+                                }
+                              }
+                            },
+                    ),
+                    if (appLock.isEnabled)
+                      ListTile(
+                        leading: const Icon(Icons.lock_clock_outlined),
+                        title: const Text('Lock now'),
+                        subtitle: const Text(
+                          'Lock NearShare until you authenticate again.',
+                        ),
+                        onTap: () => ref.read(appLockProvider.notifier).lock(),
+                      ),
                     ListTile(
                       leading: const Icon(Icons.replay_outlined),
                       title: const Text('Replay welcome tour'),
@@ -180,21 +215,36 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-                const _Section(
+                _Section(
                   title: 'ABOUT',
                   children: [
-                    ListTile(
+                    const ListTile(
                       leading: Icon(Icons.cloud_off_outlined),
-                      title: Text('We don\u2019t collect your data. Full stop.'),
+                      title:
+                          Text('We don\u2019t collect your data. Full stop.'),
                       subtitle: Text(
                         'No account, no cloud, no analytics — your files never '
                         'leave your Wi-Fi network.',
                       ),
                     ),
-                    _VersionTile(),
+                    const _VersionTile(),
                     ListTile(
-                      leading: Icon(Icons.description_outlined),
-                      title: Text('Open source licenses'),
+                      leading: const Icon(Icons.privacy_tip_outlined),
+                      title: const Text('Privacy policy'),
+                      trailing: const Icon(Icons.chevron_right, size: 22),
+                      onTap: () => _showPrivacyPolicy(context),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.description_outlined),
+                      title: const Text('Open source licenses'),
+                      trailing: const Icon(Icons.chevron_right, size: 22),
+                      onTap: () => showLicensePage(
+                        context: context,
+                        applicationName: 'NearShare',
+                        applicationLegalese:
+                            'MIT licensed. Built with Flutter and open-source '
+                            'packages.',
+                      ),
                     ),
                   ],
                 ),
@@ -209,6 +259,36 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ],
             ),
+    );
+  }
+
+  void _showPrivacyPolicy(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Privacy policy'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'NearShare does not collect, transmit, sell, or share personal '
+            'data. There is no account, cloud service, analytics SDK, or '
+            'telemetry.\n\n'
+            'Files are sent directly between devices on your local network. '
+            'The app stores device identity, transfer history, settings, and '
+            'security keys on this device. Secrets are stored in the platform '
+            'secure store and local databases are encrypted.\n\n'
+            'NearShare advertises a local mDNS record so nearby devices can '
+            'find it. Anyone on your network may be able to see the device '
+            'name and a TLS certificate fingerprint.\n\n'
+            'The full policy is in PRIVACY.md in the NearShare repository.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 

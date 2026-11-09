@@ -1,8 +1,11 @@
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../core/security/tls_identity.dart';
 import '../../discovery/domain/device.dart';
 import '../domain/resume_state.dart';
 import '../domain/transfer_request.dart';
@@ -25,23 +28,54 @@ class TransferClientException implements Exception {
 }
 
 class TransferClient {
-  final Dio _dio;
+  late final Dio _dio;
+  final Map<String, String> _pinnedFingerprints = <String, String>{};
 
   /// Backoff policy applied to chunk uploads, resume queries and finalization.
   final RetryPolicy retryPolicy;
 
   TransferClient({Dio? dio, RetryPolicy? retryPolicy})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 15),
-                receiveTimeout: const Duration(seconds: 60),
-                sendTimeout: const Duration(minutes: 30),
-              ),
-            ),
-        retryPolicy = retryPolicy ?? transferRetryPolicy;
+      : retryPolicy = retryPolicy ?? transferRetryPolicy {
+    if (dio != null) {
+      _dio = dio;
+      return;
+    }
+    _dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 60),
+        sendTimeout: const Duration(minutes: 30),
+      ),
+    );
+    _dio.httpClientAdapter = IOHttpClientAdapter(
+      createHttpClient: () {
+        final client = HttpClient();
+        client.badCertificateCallback = _verifyPinnedCertificate;
+        return client;
+      },
+    );
+  }
 
-  String _baseUrl(Device target) => 'http://${target.ipAddress}:${target.port}';
+  bool _verifyPinnedCertificate(
+    X509Certificate certificate,
+    String host,
+    int port,
+  ) {
+    final expected = _pinnedFingerprints['$host:$port'];
+    if (expected == null) return false;
+    final actual = sha256.convert(certificate.der).toString();
+    return TlsIdentityService.fingerprintMatches(actual, expected);
+  }
+
+  String _baseUrl(Device target) {
+    final fingerprint = target.certFingerprint;
+    if (fingerprint != null && fingerprint.isNotEmpty) {
+      _pinnedFingerprints['${target.ipAddress}:${target.port}'] =
+          TlsIdentityService.normalizeFingerprint(fingerprint);
+      return 'https://${target.ipAddress}:${target.port}';
+    }
+    return 'http://${target.ipAddress}:${target.port}';
+  }
 
   bool _shouldRetry(Object error, StackTrace stack) {
     if (error is DioException && error.type == DioExceptionType.cancel) {

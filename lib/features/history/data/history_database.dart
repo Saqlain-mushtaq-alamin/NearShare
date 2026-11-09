@@ -1,9 +1,10 @@
 import 'dart:io';
 
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart' show NativeDatabase;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+
+import '../../../core/security/database_key.dart';
 
 part 'history_database.g.dart';
 
@@ -48,7 +49,7 @@ NearShareDatabase openDefaultNearShareDatabase() {
     LazyDatabase(
       () async {
         final file = await defaultDatabaseFile();
-        return NativeDatabase(file);
+        return DatabaseKeyService.history.openFile(file);
       },
     ),
   );

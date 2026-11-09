@@ -34,6 +34,7 @@ class FakeMdnsDiscoveryService implements MdnsDiscoveryService {
     required String deviceName,
     required String platform,
     required int port,
+    String? tlsFingerprint,
   }) async {
     _broadcasting = true;
   }

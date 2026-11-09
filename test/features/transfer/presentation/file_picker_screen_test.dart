@@ -33,7 +33,9 @@ void main() {
             home: Consumer(
               builder: (context, ref, child) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  ref.read(transferStateProvider.notifier).setSelectedFiles(const [
+                  ref
+                      .read(transferStateProvider.notifier)
+                      .setSelectedFiles(const [
                     TransferFile(
                       name: 'presentation.pdf',
                       sizeInBytes: 1048576, // 1 MB
@@ -65,6 +67,45 @@ void main() {
       expect(find.text('Clear all'), findsOneWidget);
     });
 
+    testWidgets('media remove control has semantics and a 48dp target',
+        (tester) async {
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Consumer(
+              builder: (context, ref, child) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  ref
+                      .read(transferStateProvider.notifier)
+                      .setSelectedFiles(const [
+                    TransferFile(
+                      name: 'photo.jpg',
+                      sizeInBytes: 524288,
+                      mimeType: 'image/jpeg',
+                      localPath: '/photo.jpg',
+                    ),
+                  ]);
+                });
+                return const FilePickerScreen();
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsLabel(RegExp(r'Remove photo\.jpg')),
+        findsOneWidget,
+      );
+      final remove = find.byKey(const ValueKey('remove-photo.jpg'));
+      expect(remove, findsOneWidget);
+      expect(tester.getSize(remove).height, greaterThanOrEqualTo(48));
+      expect(tester.getSize(remove).width, greaterThanOrEqualTo(48));
+      semantics.dispose();
+    });
+
     testWidgets('Documents tab lists non-media files', (tester) async {
       await tester.pumpWidget(
         ProviderScope(
@@ -72,7 +113,9 @@ void main() {
             home: Consumer(
               builder: (context, ref, child) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  ref.read(transferStateProvider.notifier).setSelectedFiles(const [
+                  ref
+                      .read(transferStateProvider.notifier)
+                      .setSelectedFiles(const [
                     TransferFile(
                       name: 'presentation.pdf',
                       sizeInBytes: 1048576,

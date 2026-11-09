@@ -21,120 +21,130 @@ class DeviceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final platformColor = AppIcons.platformColor(device.platform);
+    final address =
+        device.ipAddress.isEmpty ? '' : ', ${device.ipAddress}:${device.port}';
 
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+    return Semantics(
+      button: onTap != null,
+      label: '${device.name}, ${device.platform.toUpperCase()} device$address',
+      hint: onTap == null ? null : 'Double tap to choose files to send',
+      onTap: onTap,
+      excludeSemantics: true,
+      child: Card(
+        elevation: 0,
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
         ),
-      ),
-      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // Platform Avatar
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: platformColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: platformColor.withValues(alpha: 0.3),
-                    width: 1,
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Platform Avatar
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: platformColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: platformColor.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    AppIcons.platformFor(device.platform),
+                    color: platformColor,
+                    size: 26,
                   ),
                 ),
-                child: Icon(
-                  AppIcons.platformFor(device.platform),
-                  color: platformColor,
-                  size: 26,
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Device Details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      device.name,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            device.platform.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.onPrimaryContainer,
-                            ),
-                          ),
+                const SizedBox(width: 16),
+                // Device Details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        device.name,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
-                        if (tag != null) ...[
-                          const SizedBox(width: 6),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 6,
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.secondaryContainer,
+                              color: theme.colorScheme.primaryContainer,
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              tag!,
+                              device.platform.toUpperCase(),
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.onSecondaryContainer,
+                                color: theme.colorScheme.onPrimaryContainer,
                               ),
                             ),
                           ),
-                        ],
-                        if (device.ipAddress.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              '${device.ipAddress}:${device.port}',
-                              style: AppTextStyles.cardSubtitle(theme),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          if (tag != null) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.secondaryContainer,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                tag!,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.onSecondaryContainer,
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
+                          if (device.ipAddress.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                '${device.ipAddress}:${device.port}',
+                                style: AppTextStyles.cardSubtitle(theme),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              // Connect / Arrow icon
-              Icon(
-                Icons.chevron_right,
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-              ),
-            ],
+                // Connect / Arrow icon
+                Icon(
+                  Icons.chevron_right,
+                  color:
+                      theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                ),
+              ],
+            ),
           ),
         ),
       ),

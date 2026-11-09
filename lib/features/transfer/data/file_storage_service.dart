@@ -2,8 +2,37 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:disk_space_plus/disk_space_plus.dart';
+
+import '../../../core/utils/is_test_env.dart';
 
 class FileStorageService {
+  static const int maxFileNameLength = 200;
+  static const Set<String> _reservedWindowsNames = <String>{
+    'CON',
+    'PRN',
+    'AUX',
+    'NUL',
+    'COM1',
+    'COM2',
+    'COM3',
+    'COM4',
+    'COM5',
+    'COM6',
+    'COM7',
+    'COM8',
+    'COM9',
+    'LPT1',
+    'LPT2',
+    'LPT3',
+    'LPT4',
+    'LPT5',
+    'LPT6',
+    'LPT7',
+    'LPT8',
+    'LPT9',
+  };
+
   final String? _customDownloadPath;
 
   FileStorageService({String? customDownloadPath})
@@ -17,8 +46,49 @@ class FileStorageService {
     }
     // Remove characters that are problematic on Windows and POSIX filesystems
     sanitized = sanitized.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-    return sanitized;
+    sanitized = sanitized.replaceAll(RegExp(r'[\u0000-\u001f\u007f]'), '_');
+    sanitized = sanitized.replaceFirst(RegExp(r'[. ]+$'), '');
+    if (sanitized.isEmpty || sanitized == '.' || sanitized == '..') {
+      sanitized = 'downloaded_file';
+    }
+
+    final String stem = p.basenameWithoutExtension(sanitized);
+    if (_reservedWindowsNames.contains(stem.toUpperCase())) {
+      sanitized = '_$sanitized';
+    }
+    return _truncateFileName(sanitized, maxFileNameLength);
   }
+
+  String _truncateFileName(String name, int maxLength) {
+    if (name.length <= maxLength) {
+      return name;
+    }
+    String extension = p.extension(name);
+    if (extension.length > 32) {
+      extension = '';
+    }
+    final String stem = extension.isEmpty
+        ? name
+        : name.substring(0, name.length - extension.length);
+    final int available = maxLength - extension.length;
+    if (available <= 0) {
+      return _safeSubstring(name, maxLength);
+    }
+    return '${_safeSubstring(stem, available)}$extension';
+  }
+
+  String _safeSubstring(String value, int end) {
+    int safeEnd = end.clamp(0, value.length);
+    if (safeEnd > 0 &&
+        safeEnd < value.length &&
+        _isHighSurrogate(value.codeUnitAt(safeEnd - 1))) {
+      safeEnd--;
+    }
+    return value.substring(0, safeEnd);
+  }
+
+  bool _isHighSurrogate(int codeUnit) =>
+      codeUnit >= 0xD800 && codeUnit <= 0xDBFF;
 
   /// Resolves the root NearShare directory used for derived folders such as
   /// [getTempDirectory].
@@ -161,7 +231,11 @@ class FileStorageService {
     var counter = 1;
 
     while (await targetFile.exists()) {
-      targetPath = p.join(downloadDir, '$nameWithoutExt ($counter)$ext');
+      final String candidate = _truncateFileName(
+        '$nameWithoutExt ($counter)$ext',
+        maxFileNameLength,
+      );
+      targetPath = p.join(downloadDir, candidate);
       targetFile = File(targetPath);
       counter++;
     }
@@ -175,6 +249,25 @@ class FileStorageService {
     return targetFile;
   }
 
+  /// Returns free bytes on the download volume, or null when unavailable.
+  Future<int?> getAvailableBytes() async {
+    if (kIsWeb || isRunningUnderTest) {
+      return null;
+    }
+    try {
+      final String directory = await getDownloadDirectory();
+      final double? freeMegabytes =
+          await DiskSpacePlus().getFreeDiskSpaceForPath(directory);
+      if (freeMegabytes == null || freeMegabytes.isNaN) {
+        return null;
+      }
+      return (freeMegabytes * 1024 * 1024).floor();
+    } catch (e) {
+      debugPrint('[FileStorageService] Failed to read free disk space: $e');
+      return null;
+    }
+  }
+
   /// Safely deletes a file if it exists (e.g. after cancellation or failure).
   Future<void> deleteIncompleteFile(String? filePath) async {
     if (filePath == null || filePath.isEmpty) return;
@@ -184,7 +277,9 @@ class FileStorageService {
         await file.delete();
       }
     } catch (e) {
-      debugPrint('[FileStorageService] Failed to delete incomplete file $filePath: $e');
+      debugPrint(
+        '[FileStorageService] Failed to delete incomplete file $filePath: $e',
+      );
     }
   }
 }

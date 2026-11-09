@@ -77,6 +77,7 @@ class AppTheme {
           seedColor: deepBlue,
           brightness: Brightness.light,
           secondary: teal,
+          onSecondary: Colors.black,
           surface: Colors.white,
         ),
         palette: TransferPalette.light,
@@ -88,6 +89,7 @@ class AppTheme {
           seedColor: deepBlue,
           brightness: Brightness.dark,
           secondary: teal,
+          onSecondary: Colors.black,
           surface: darkSurface,
         ),
         palette: TransferPalette.dark,
@@ -95,7 +97,8 @@ class AppTheme {
 
   /// Convenience accessor for the transfer palette of the current theme.
   static TransferPalette paletteOf(BuildContext context) {
-    return Theme.of(context).extension<TransferPalette>() ?? TransferPalette.light;
+    return Theme.of(context).extension<TransferPalette>() ??
+        TransferPalette.light;
   }
 
   static ThemeData _base({
@@ -133,7 +136,9 @@ class AppTheme {
       cardTheme: CardThemeData(
         elevation: 0,
         margin: EdgeInsets.zero,
-        color: isDark ? scheme.surfaceContainerHighest.withValues(alpha: 0.35) : Colors.white,
+        color: isDark
+            ? scheme.surfaceContainerHighest.withValues(alpha: 0.35)
+            : Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
@@ -144,28 +149,37 @@ class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle:
+              textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+          textStyle:
+              textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
           side: BorderSide(color: scheme.outlineVariant),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle:
+              textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? scheme.surfaceContainerHighest.withValues(alpha: 0.3) : scheme.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        fillColor: isDark
+            ? scheme.surfaceContainerHighest.withValues(alpha: 0.3)
+            : scheme.surface,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: scheme.outlineVariant),
@@ -189,7 +203,8 @@ class AppTheme {
           final selected = states.contains(WidgetState.selected);
           return IconThemeData(
             size: 24,
-            color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+            color:
+                selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
           );
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {

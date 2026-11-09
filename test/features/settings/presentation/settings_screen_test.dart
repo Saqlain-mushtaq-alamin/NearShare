@@ -67,6 +67,18 @@ void main() {
       );
     }
 
+    testWidgets('lays out without overflow at 200% text scaling',
+        (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      await pumpSettings(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Settings'), findsOneWidget);
+      expect(find.text('App lock'), findsOneWidget);
+    });
+
     testWidgets('renders every settings section', (tester) async {
       await pumpSettings(tester);
 

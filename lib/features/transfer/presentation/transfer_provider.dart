@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/security/network_security.dart';
 import '../../discovery/data/device_identity_service.dart';
 import '../../discovery/domain/device.dart';
 import '../../discovery/presentation/discovery_provider.dart';
@@ -39,10 +40,18 @@ final transferServerProvider = Provider<TransferServer>((ref) {
   final storage = ref.watch(fileStorageServiceProvider);
   final repository = ref.watch(transferSessionRepositoryProvider);
   final history = ref.watch(historyRepositoryProvider);
+  final identityService = ref.watch(deviceIdentityServiceProvider);
+  final tlsService = ref.watch(tlsIdentityServiceProvider);
   final server = TransferServer(
     storageService: storage,
     sessionRepository: repository,
     historyRepository: history,
+    securityConfig: const ServerSecurityConfig(),
+    localDeviceIdProvider: identityService.getOrCreateDeviceId,
+    tlsIdentityProvider: () async {
+      final local = await identityService.getLocalDevice();
+      return tlsService.loadOrCreate(commonName: local.name);
+    },
   );
   ref.onDispose(() => server.dispose());
   return server;

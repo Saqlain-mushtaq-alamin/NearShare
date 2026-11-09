@@ -4,6 +4,7 @@ class TransferFile {
   final String mimeType;
   final String localPath;
   final String? savePath;
+  final String? sha256;
 
   const TransferFile({
     required this.name,
@@ -11,6 +12,7 @@ class TransferFile {
     required this.mimeType,
     required this.localPath,
     this.savePath,
+    this.sha256,
   });
 
   TransferFile copyWith({
@@ -19,6 +21,7 @@ class TransferFile {
     String? mimeType,
     String? localPath,
     String? savePath,
+    String? sha256,
   }) {
     return TransferFile(
       name: name ?? this.name,
@@ -26,6 +29,7 @@ class TransferFile {
       mimeType: mimeType ?? this.mimeType,
       localPath: localPath ?? this.localPath,
       savePath: savePath ?? this.savePath,
+      sha256: sha256 ?? this.sha256,
     );
   }
 
@@ -36,6 +40,7 @@ class TransferFile {
       'mimeType': mimeType,
       'localPath': localPath,
       if (savePath != null) 'savePath': savePath,
+      if (sha256 != null) 'sha256': sha256,
     };
   }
 
@@ -46,6 +51,7 @@ class TransferFile {
       mimeType: json['mimeType'] as String? ?? 'application/octet-stream',
       localPath: json['localPath'] as String? ?? '',
       savePath: json['savePath'] as String?,
+      sha256: json['sha256'] as String?,
     );
   }
 
@@ -58,7 +64,8 @@ class TransferFile {
           sizeInBytes == other.sizeInBytes &&
           mimeType == other.mimeType &&
           localPath == other.localPath &&
-          savePath == other.savePath;
+          savePath == other.savePath &&
+          sha256 == other.sha256;
 
   @override
   int get hashCode =>
@@ -66,7 +73,8 @@ class TransferFile {
       sizeInBytes.hashCode ^
       mimeType.hashCode ^
       localPath.hashCode ^
-      savePath.hashCode;
+      savePath.hashCode ^
+      sha256.hashCode;
 
   @override
   String toString() {

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nearshare/features/history/domain/transfer_record.dart';
 import 'package:nearshare/features/history/presentation/history_item_widget.dart';
 import 'package:nearshare/features/transfer/domain/transfer_session.dart';
+import 'package:nearshare/shared/utils/formatters.dart';
 
 TransferRecord record({
   required String transferId,
@@ -161,6 +163,31 @@ void main() {
 
       expect(resent, 1);
       expect(find.byType(HistoryItemWidget), findsOneWidget);
+    });
+
+    testWidgets('exposes a descriptive semantics label and actions',
+        (tester) async {
+      final item = record(transferId: 'i9', peerName: 'Sara');
+      final semantics = tester.ensureSemantics();
+      await pumpItem(
+        tester,
+        item,
+        onTap: () {},
+        onDelete: () {},
+        onResend: () {},
+      );
+
+      final label = 'Sent to Sara, '
+          '${fileCountLabel(item.totalFiles, item.totalSizeBytes)}, '
+          'Completed, ${formatTimestamp(item.timestamp)}';
+      expect(find.bySemanticsLabel(label), findsOneWidget);
+
+      final node = tester.getSemantics(find.bySemanticsLabel(label));
+      expect(
+        node.getSemanticsData().hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+      semantics.dispose();
     });
 
     testWidgets('received rows cannot be swiped to resend', (tester) async {

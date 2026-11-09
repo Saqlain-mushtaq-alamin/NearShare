@@ -8,6 +8,9 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
+import '../../../core/security/content_security.dart';
+import '../../../core/security/network_security.dart';
+import '../../../core/security/tls_identity.dart';
 import '../../history/data/history_repository.dart';
 import '../../history/domain/transfer_record.dart';
 import '../domain/transfer_progress.dart';
@@ -16,6 +19,10 @@ import '../domain/transfer_session.dart';
 import 'chunk_manager.dart';
 import 'file_storage_service.dart';
 import 'transfer_session_repository.dart';
+
+class _BodyTooLarge implements Exception {
+  const _BodyTooLarge();
+}
 
 class _ProgressState {
   final DateTime startedAt;
@@ -37,6 +44,10 @@ class TransferServer {
   final FileStorageService _storageService;
   final TransferSessionRepository _sessionRepository;
   final HistoryRepository _historyRepository;
+  final ServerSecurityConfig? _securityConfig;
+  final InternetAddress? Function(Request request)? _remoteAddressOverride;
+  final Future<String?> Function()? _localDeviceIdProvider;
+  final Future<TlsIdentity?> Function()? _tlsIdentityProvider;
   late final ChunkManager _chunkManager;
 
   final StreamController<TransferRequest> _incomingRequestController =
@@ -59,10 +70,18 @@ class TransferServer {
     FileStorageService? storageService,
     TransferSessionRepository? sessionRepository,
     HistoryRepository? historyRepository,
+    ServerSecurityConfig? securityConfig,
+    InternetAddress? Function(Request request)? remoteAddressOverride,
+    Future<String?> Function()? localDeviceIdProvider,
+    Future<TlsIdentity?> Function()? tlsIdentityProvider,
   })  : _storageService = storageService ?? FileStorageService(),
         _sessionRepository = sessionRepository ??
             InMemoryTransferSessionRepository(),
-        _historyRepository = historyRepository ?? InMemoryHistoryRepository() {
+        _historyRepository = historyRepository ?? InMemoryHistoryRepository(),
+        _securityConfig = securityConfig,
+        _remoteAddressOverride = remoteAddressOverride,
+        _localDeviceIdProvider = localDeviceIdProvider,
+        _tlsIdentityProvider = tlsIdentityProvider {
     _chunkManager = ChunkManager(
       repository: _sessionRepository,
       storageService: _storageService,
@@ -79,7 +98,17 @@ class TransferServer {
   ChunkManager get chunkManager => _chunkManager;
   HistoryRepository get historyRepository => _historyRepository;
 
-  Handler get handler => _buildRouter().call;
+  Handler get handler {
+    final Handler router = _buildRouter().call;
+    if (_securityConfig == null) {
+      return router;
+    }
+    return securityMiddleware(
+      router,
+      config: _securityConfig!,
+      remoteAddressOverride: _remoteAddressOverride,
+    );
+  }
 
   Router _buildRouter() {
     final router = Router();
@@ -123,22 +152,37 @@ class TransferServer {
         .addMiddleware(logRequests())
         .addHandler(handler);
 
+    TlsIdentity? tlsIdentity;
+    try {
+      tlsIdentity = await _tlsIdentityProvider?.call();
+    } catch (e) {
+      debugPrint('[TransferServer] TLS identity unavailable: $e');
+      rethrow;
+    }
+    final scheme = tlsIdentity == null ? 'http' : 'https';
+
     try {
       _server = await shelf_io.serve(
         pipeline,
         InternetAddress.anyIPv4,
         preferredPort,
+        securityContext: tlsIdentity?.createSecurityContext(),
       );
       _boundPort = _server!.port;
       debugPrint(
-        '[TransferServer] Listening on http://${_server!.address.host}:$_boundPort',
+        '[TransferServer] Listening on $scheme://${_server!.address.host}:$_boundPort',
       );
       return _boundPort!;
     } catch (e) {
       debugPrint(
         '[TransferServer] Port $preferredPort busy, binding to any free port (0)',
       );
-      _server = await shelf_io.serve(pipeline, InternetAddress.anyIPv4, 0);
+      _server = await shelf_io.serve(
+        pipeline,
+        InternetAddress.anyIPv4,
+        0,
+        securityContext: tlsIdentity?.createSecurityContext(),
+      );
       _boundPort = _server!.port;
       debugPrint('[TransferServer] Listening on dynamic port: $_boundPort');
       return _boundPort!;
@@ -182,6 +226,19 @@ class TransferServer {
         return _jsonError(400, 'Missing transferId');
       }
 
+      final localDeviceId = await _localDeviceIdProvider?.call();
+      if (localDeviceId != null &&
+          localDeviceId.isNotEmpty &&
+          transferRequest.senderId == localDeviceId) {
+        return _jsonError(409, 'Cannot send files to the same device');
+      }
+
+      final ContentValidationResult validation =
+          const TransferContentValidator().validate(transferRequest);
+      if (!validation.isValid) {
+        return _jsonError(400, validation.message);
+      }
+
       // A transfer we already accepted (possibly in a previous process) is
       // resumed silently so the sender never has to be prompted twice.
       final existing = await _sessionRepository.getSession(transferId);
@@ -193,6 +250,15 @@ class TransferServer {
       }
       if (existing != null) {
         await _sessionRepository.deleteSession(transferId);
+      }
+
+      final int? availableBytes = await _storageService.getAvailableBytes();
+      if (availableBytes != null &&
+          transferRequest.totalSizeBytes > availableBytes) {
+        return _jsonError(
+          507,
+          'Not enough free storage for ${transferRequest.totalSizeBytes} bytes',
+        );
       }
 
       var completer = _pendingDecisions[transferId];
@@ -360,7 +426,12 @@ class TransferServer {
       return _jsonError(400, rangeError);
     }
 
-    final bytes = await _readBody(request);
+    late final List<int> bytes;
+    try {
+      bytes = await _readBody(request);
+    } on _BodyTooLarge {
+      return _jsonError(413, 'Chunk body too large');
+    }
     final declaredSize = int.tryParse(request.headers['x-chunk-size'] ?? '');
     if (declaredSize != null && declaredSize != bytes.length) {
       return _jsonError(
@@ -452,6 +523,18 @@ class TransferServer {
     String savePath;
     try {
       final assembled = await _chunkManager.assembleFile(transferId, fileIndex);
+      final expectedHash = transfer.files[fileIndex].sha256;
+      if (expectedHash != null && expectedHash.isNotEmpty) {
+        final actualHash = await FileChecksum.sha256OfFile(assembled.path);
+        if (actualHash.toLowerCase() != expectedHash.toLowerCase()) {
+          await _storageService.deleteIncompleteFile(assembled.path);
+          await _chunkManager.discardFile(transferId, fileIndex);
+          return _jsonError(
+            422,
+            'Checksum mismatch for ${transfer.files[fileIndex].name}',
+          );
+        }
+      }
       savePath = assembled.path;
     } on StateError catch (e) {
       return Response(
@@ -762,9 +845,13 @@ class TransferServer {
   }
 
   Future<List<int>> _readBody(Request request) async {
+    const int maxBodyBytes = 8 * 1024 * 1024;
     final builder = BytesBuilder(copy: false);
     await for (final chunk in request.read()) {
       builder.add(chunk);
+      if (builder.length > maxBodyBytes) {
+        throw const _BodyTooLarge();
+      }
     }
     return builder.takeBytes();
   }

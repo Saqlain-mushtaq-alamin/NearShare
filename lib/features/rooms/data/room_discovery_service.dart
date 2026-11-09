@@ -116,6 +116,7 @@ class BonsoirRoomDiscoveryService implements RoomDiscoveryService {
         },
       );
       _broadcast = BonsoirBroadcast(service: service);
+      await _broadcast!.initialize();
       await _broadcast!.start();
       debugPrint('[RoomDiscovery] Broadcasting room $roomCode on port $port');
     } catch (e, stack) {
@@ -148,6 +149,7 @@ class BonsoirRoomDiscoveryService implements RoomDiscoveryService {
     await stopDiscovery();
     try {
       _discovery = BonsoirDiscovery(type: serviceType);
+      await _discovery!.initialize();
       _subscription = _discovery!.eventStream?.listen(
         _handleEvent,
         onError: (Object error) {

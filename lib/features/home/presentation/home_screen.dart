@@ -64,10 +64,6 @@ class HomeScreen extends ConsumerWidget {
       },
     );
 
-    final deviceCount = discoveryState.devices.length;
-    final deviceSectionHeight =
-        deviceCount == 0 ? 360.0 : 64.0 + deviceCount * 88.0;
-
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -82,9 +78,11 @@ class HomeScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
+            key: const ValueKey('home-refresh-button'),
             tooltip: 'Refresh discovery',
             icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => ref.read(discoveryStateProvider.notifier).refresh(),
+            onPressed: () =>
+                ref.read(discoveryStateProvider.notifier).refresh(),
           ),
         ],
       ),
@@ -101,8 +99,11 @@ class HomeScreen extends ConsumerWidget {
               isReceiving: discoveryState.isBroadcasting,
               onSend: () => context.push('/send'),
               onToggleReceive: discoveryState.isBroadcasting
-                  ? () => ref.read(discoveryStateProvider.notifier).stopBroadcast()
-                  : () => ref.read(discoveryStateProvider.notifier).startBroadcast(),
+                  ? () =>
+                      ref.read(discoveryStateProvider.notifier).stopBroadcast()
+                  : () => ref
+                      .read(discoveryStateProvider.notifier)
+                      .startBroadcast(),
             ),
             if (localDevice != null) ...[
               const SizedBox(height: AppSpacing.md),
@@ -110,12 +111,10 @@ class HomeScreen extends ConsumerWidget {
             ],
             const SizedBox(height: AppSpacing.lg),
             _IncompleteSection(theme: theme),
-            SizedBox(
-              height: deviceSectionHeight,
-              child: DeviceListWidget(
-                onDeviceSelected: (device) =>
-                    _onDeviceTapped(context, ref, device),
-              ),
+            DeviceListWidget(
+              shrinkWrap: true,
+              onDeviceSelected: (device) =>
+                  _onDeviceTapped(context, ref, device),
             ),
             if (recentHistory.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.sm),
@@ -150,102 +149,129 @@ class _SendCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Material(
-          borderRadius: BorderRadius.circular(20),
-          clipBehavior: Clip.antiAlias,
-          child: Ink(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isReceiving
-                    ? [const Color(0xFF1A4BCF), const Color(0xFF2F6BF0)]
-                    : [
-                        theme.colorScheme.primary.withValues(alpha: 0.85),
-                        theme.colorScheme.primary,
-                      ],
-              ),
-            ),
-            child: InkWell(
-              onTap: onSend,
-              borderRadius: BorderRadius.circular(20),
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.xl),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(
-                        AppIcons.send,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.lg),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Send files',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Photos, videos, docs — straight to a nearby device',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: Colors.white.withValues(alpha: 0.85),
-                            ),
-                          ),
+        Semantics(
+          key: const ValueKey('home-send-files'),
+          button: true,
+          label: 'Send files to a nearby device',
+          hint: 'Opens the file picker',
+          onTap: onSend,
+          excludeSemantics: true,
+          child: Material(
+            borderRadius: BorderRadius.circular(20),
+            clipBehavior: Clip.antiAlias,
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: isReceiving
+                      ? [const Color(0xFF1A4BCF), const Color(0xFF2F6BF0)]
+                      : [
+                          theme.colorScheme.primary.withValues(alpha: 0.85),
+                          theme.colorScheme.primary,
                         ],
+                ),
+              ),
+              child: InkWell(
+                onTap: onSend,
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.xl),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          AppIcons.send,
+                          color: Colors.white,
+                          size: 28,
+                        ),
                       ),
-                    ),
-                    const Icon(
-                      Icons.arrow_forward_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ],
+                      const SizedBox(width: AppSpacing.lg),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Send files',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Photos, videos, docs — straight to a nearby device',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.85),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        InkWell(
+        Semantics(
+          key: const ValueKey('home-receive-toggle'),
+          button: true,
+          toggled: isReceiving,
+          label:
+              isReceiving ? 'Receiving files is on' : 'Receiving files is off',
+          hint: isReceiving ? 'Double tap to pause' : 'Double tap to resume',
           onTap: onToggleReceive,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-            child: Row(
-              children: [
-                _PulsingDot(active: isReceiving),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  isReceiving ? 'Ready to receive' : 'Receiving is paused',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: isReceiving
-                        ? AppTheme.paletteOf(context).success
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
+          excludeSemantics: true,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: InkWell(
+              onTap: onToggleReceive,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  children: [
+                    ExcludeSemantics(
+                      child: _PulsingDot(active: isReceiving),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        isReceiving
+                            ? 'Ready to receive'
+                            : 'Receiving is paused',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: isReceiving
+                              ? AppTheme.paletteOf(context).success
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      isReceiving ? 'Tap to pause' : 'Tap to resume',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
-                const Spacer(),
-                Text(
-                  isReceiving ? 'Tap to pause' : 'Tap to resume',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -451,7 +477,8 @@ class _RecentTransfersSection extends StatelessWidget {
             children: [
               for (var i = 0; i < records.length; i++) ...[
                 _RecentTile(record: records[i]),
-                if (i < records.length - 1) const Divider(indent: 56, endIndent: 16),
+                if (i < records.length - 1)
+                  const Divider(indent: 56, endIndent: 16),
               ],
             ],
           ),
@@ -477,7 +504,8 @@ class _RecentTile extends StatelessWidget {
     final IconData statusIcon;
     if (done) {
       statusColor = palette.success;
-      statusIcon = sent ? Icons.check_rounded : Icons.file_download_done_rounded;
+      statusIcon =
+          sent ? Icons.check_rounded : Icons.file_download_done_rounded;
     } else if (record.status == TransferRecordStatus.failed) {
       statusColor = palette.error;
       statusIcon = Icons.error_outline_rounded;

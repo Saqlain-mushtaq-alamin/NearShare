@@ -7,6 +7,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
+import '../../../core/security/network_security.dart';
 import '../domain/room_member.dart';
 import 'room_event_service.dart';
 import 'room_manager.dart';
@@ -17,11 +18,16 @@ import 'room_manager.dart';
 /// Server-Sent Events at `GET /api/v1/room/events`.
 class RoomServer {
   final RoomManager _manager;
+  final ServerSecurityConfig? _securityConfig;
 
   HttpServer? _server;
   int? _boundPort;
 
-  RoomServer({required RoomManager manager}) : _manager = manager;
+  RoomServer({
+    required RoomManager manager,
+    ServerSecurityConfig? securityConfig,
+  })  : _manager = manager,
+        _securityConfig = securityConfig;
 
   int? get boundPort => _boundPort;
 
@@ -48,8 +54,14 @@ class RoomServer {
 
     await stop();
 
+    final securityConfig = _securityConfig;
     final pipeline = const Pipeline()
         .addMiddleware(logRequests())
+        .addMiddleware(
+          securityConfig == null
+              ? (inner) => inner
+              : (inner) => securityMiddleware(inner, config: securityConfig),
+        )
         .addHandler(handler);
 
     try {
