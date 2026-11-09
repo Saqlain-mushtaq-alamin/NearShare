@@ -42,8 +42,19 @@ class _FilePickerScreenState extends ConsumerState<FilePickerScreen>
   );
 
   static const List<String> _documentExtensions = [
-    'pdf', 'doc', 'docx', 'txt', 'rtf', 'xls', 'xlsx',
-    'ppt', 'pptx', 'csv', 'md', 'zip', 'rar',
+    'pdf',
+    'doc',
+    'docx',
+    'txt',
+    'rtf',
+    'xls',
+    'xlsx',
+    'ppt',
+    'pptx',
+    'csv',
+    'md',
+    'zip',
+    'rar',
   ];
 
   @override
@@ -58,20 +69,26 @@ class _FilePickerScreenState extends ConsumerState<FilePickerScreen>
     switch (_tab) {
       case _PickerTab.photos:
         return selected
-            .where((f) => categorizeFile(name: f.name, mimeType: f.mimeType) == FileCategory.photos)
+            .where(
+              (f) =>
+                  categorizeFile(name: f.name, mimeType: f.mimeType) ==
+                  FileCategory.photos,
+            )
             .toList();
       case _PickerTab.videos:
         return selected
-            .where((f) => categorizeFile(name: f.name, mimeType: f.mimeType) == FileCategory.videos)
+            .where(
+              (f) =>
+                  categorizeFile(name: f.name, mimeType: f.mimeType) ==
+                  FileCategory.videos,
+            )
             .toList();
       case _PickerTab.documents:
-        return selected
-            .where((f) {
-              final category = categorizeFile(name: f.name, mimeType: f.mimeType);
-              return category == FileCategory.documents ||
-                  category == FileCategory.other;
-            })
-            .toList();
+        return selected.where((f) {
+          final category = categorizeFile(name: f.name, mimeType: f.mimeType);
+          return category == FileCategory.documents ||
+              category == FileCategory.other;
+        }).toList();
       case _PickerTab.all:
         return selected;
     }
@@ -260,7 +277,8 @@ class _FilePickerScreenState extends ConsumerState<FilePickerScreen>
         final theme = Theme.of(context);
         return Card(
           child: ListTile(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             leading: CircleAvatar(
               backgroundColor: theme.colorScheme.secondaryContainer,
               child: Icon(
@@ -316,17 +334,35 @@ class _MediaTile extends StatelessWidget {
               : _fallbackIcon(theme),
         ),
         Positioned(
-          top: 6,
-          right: 6,
-          child: Material(
-            color: Colors.black.withValues(alpha: 0.45),
-            shape: const CircleBorder(),
+          top: 0,
+          right: 0,
+          child: Semantics(
+            button: true,
+            label: 'Remove ${file.name}',
+            onTap: onRemove,
+            excludeSemantics: true,
             child: InkWell(
+              key: ValueKey('remove-${file.name}'),
               customBorder: const CircleBorder(),
               onTap: onRemove,
-              child: const Padding(
-                padding: EdgeInsets.all(5),
-                child: Icon(Icons.close, size: 16, color: Colors.white),
+              child: SizedBox(
+                width: 48,
+                height: 48,
+                child: Center(
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -486,7 +522,8 @@ class _EmptyPickerState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+                color:
+                    theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
                 shape: BoxShape.circle,
               ),
               child: Icon(_icon, size: 44, color: theme.colorScheme.primary),
