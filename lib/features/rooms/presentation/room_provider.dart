@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/security/network_security.dart';
 import '../../discovery/data/device_identity_service.dart';
 import '../../discovery/presentation/discovery_provider.dart';
 import '../../transfer/domain/transfer_file.dart';
@@ -37,7 +38,10 @@ final roomProvider = StateNotifierProvider<RoomNotifier, RoomState>((ref) {
     discoveryService: BonsoirRoomDiscoveryService(),
     transferService: transfer,
     manager: manager,
-    server: RoomServer(manager: manager),
+    server: RoomServer(
+      manager: manager,
+      securityConfig: const ServerSecurityConfig(),
+    ),
   );
 });
 
@@ -66,14 +70,17 @@ class RoomNotifier extends StateNotifier<RoomState> {
     QrCodeService? qrCodeService,
   })  : _identityService = identityService,
         _roomClient = roomClient ?? RoomClient(),
-        _discoveryService =
-            discoveryService ?? BonsoirRoomDiscoveryService(),
+        _discoveryService = discoveryService ?? BonsoirRoomDiscoveryService(),
         _transferService = transferService ??
             RoomTransferService(sender: (_, __, ___) async {}),
         _manager = manager ?? RoomManager(),
         _qrCodeService = qrCodeService ?? QrCodeService(),
         super(const RoomState()) {
-    _server = server ?? RoomServer(manager: _manager);
+    _server = server ??
+        RoomServer(
+          manager: _manager,
+          securityConfig: const ServerSecurityConfig(),
+        );
     _roomSubscription = _manager.onRoomUpdated.listen((room) {
       if (_disposed) return;
       state = state.copyWith(room: room);
@@ -329,7 +336,9 @@ class RoomNotifier extends StateNotifier<RoomState> {
   }
 
   /// Sends [files] to every member in parallel. Returns the final summary.
-  Future<RoomTransferSummary?> sendFilesToAll([List<TransferFile>? files]) async {
+  Future<RoomTransferSummary?> sendFilesToAll([
+    List<TransferFile>? files,
+  ]) async {
     final room = state.room;
     final filesToSend = files ?? state.selectedFiles;
     if (room == null || state.role != RoomRole.host) {

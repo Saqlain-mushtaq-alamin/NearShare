@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/security/network_security.dart';
 import '../../discovery/data/device_identity_service.dart';
 import '../../discovery/domain/device.dart';
 import '../../discovery/presentation/discovery_provider.dart';
@@ -492,6 +493,7 @@ class MergeSpaceNotifier extends StateNotifier<MergeSpaceState> {
       onRemoteDelete: _handleRemoteDelete,
       storage: _storage,
       localDeviceId: () => state.localDevice?.deviceId ?? '',
+      securityConfig: const ServerSecurityConfig(),
     );
     final port = await _server!.start();
     _port = port;
